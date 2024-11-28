@@ -81,8 +81,6 @@ class CMLNode:
                 "configuration": configuration,
             }.items() if value or value ==0}
         # DEBUG
-        print (rest_payload)
-        print (self.target_uri)
         r = self.cml_lab.client.cml_rest_req(
             target_uri = self.target_uri,
             method ="POST",
@@ -167,8 +165,6 @@ class CMLNode:
         for interface_parameter in interfaces_parameters:
             interface = CMLInterface()
             interface.set_interface_parameters(interface_parameter)
-            print ("debug")
-            print (interface_parameter)
             self.interfaces.append(interface)
     
     def set_node_interfaces_connected_status(self, intf_id: str, is_connected: bool):
@@ -182,8 +178,6 @@ class CMLNode:
     def get_next_free_node_interface_id(self, avoid_interfaces: list) -> str:
         #self.refresh_node_interfaces_status()
         for cml_intf in self.interfaces:
-            print ("debug")
-            print ("checking interfaces one by one...")
             avoid_this = False
             if cml_intf.type != "physical":
                 continue
@@ -195,9 +189,6 @@ class CMLNode:
                     break
             if avoid_this:
                 continue
-            print ("DEBUG")
-            print("FREE interface:")
-            print (cml_intf.id)
             return cml_intf.id
         return None
 
@@ -215,11 +206,7 @@ def add_link_between_nodes(node1: CMLNode, node2: CMLNode, exclude_interfaces: l
     if node1.cml_lab.id != node2.cml_lab.id:
         print (f"Can not connect 2 nodes present in different labs. Node1: {node1.label}, Node2: {node2.label}")
     link = CMLLink()
-    print ("DEBUG")
-    print (node1_intf)
-    print (node2_intf)
     intf_tuple = (node1_intf, node2_intf)
-    print (intf_tuple)
     link_id = link.connect_link(node1.cml_lab, intf_tuple)
     if link_id:
         print (f"Link connected between {node1.label}, {node2.label}!")

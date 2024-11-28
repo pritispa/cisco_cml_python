@@ -60,7 +60,10 @@ class NodeGroup:
         self.group_mgmt_start_ip = group_mgmt_start_ip
         self.group_mgmt_gw_ip = group_mgmt_gw_ip
         base_config = get_node_base_config(group_node_definition)
-        self.group_configuration = base_config + group_configuration
+        if group_configuration:
+            self.group_configuration = base_config + group_configuration
+        else:
+            self.group_configuration = base_config
         self.interfaces_per_node = interfaces_per_node
         self.delete_existing_nodes = delete_existing_nodes
         self.nodes = []

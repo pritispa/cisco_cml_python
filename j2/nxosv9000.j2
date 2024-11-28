@@ -1,8 +1,9 @@
 {% if gw is defined %}
 vrf context management
   ip route 0.0.0.0/0 {{ gw }}
-{% endif %}
-{% if ip_address is defined %}
-int mgmt 0
+{% endif -%}
+{% if ip_address is defined -%}
+interface mgmt 0
   ip address {{ ip_address }}/{{ mask }}
+  no cdp enable
 {% endif %}

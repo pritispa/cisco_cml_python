@@ -1,0 +1,337 @@
+CML:
+  hostname: 172.25.74.154
+  username: admin
+  password: "test_password"
+
+labs:
+  - title: Test_Lab_1
+    force_clean: True
+    node_groups:
+      ####################### Common nodes, unmanaged switch, external connection, msite isn #######################
+      - group_name: lab_ext_connection
+        group_node_definition: external_connector
+        group_node_names_prefix: lab_ext
+        # external_connector configuration accepts any of the linux bridge interfaces as parameters
+        # example: NAT, bridge0, bridge1, bridge2 etc...
+        group_extra_configuration: bridge1
+        group_node_count: 1
+        interfaces_per_node: 1
+        group_location:
+          x: 0
+          y: -440
+        group_spread: horizontal
+        group_intraspace: 80
+      - group_name: unmanaged switch
+        group_node_definition: unmanaged_switch
+        group_node_names_prefix: un_switch
+        group_extra_configuration:
+        group_node_count: 1
+        interfaces_per_node: 30
+        group_location:
+          x: 0
+          y: -360
+        group_spread: horizontal
+        group_intraspace: 80
+      - group_name: msite isn device
+        group_node_definition: nxosv9000
+        group_node_names_prefix: s12msite
+        group_extra_configuration:
+        group_node_count: 1
+        interfaces_per_node: 10
+        group_location:
+          x: 520
+          y: -360
+        group_spread: horizontal
+        group_intraspace: 80
+      ####################### Site 1 nodes #######################
+      - group_name: s1leafs
+        group_node_definition: nxosv9000
+        group_node_names_prefix: s1leaf
+        group_node_count: 4
+        interfaces_per_node: 10
+        group_mgmt_start_ip: 192.18.0.121
+        group_mgmt_subnet: 192.18.0.0/24
+        group_mgmt_gw_ip: 192.18.0.250
+        group_location:
+          x: 0
+          y: 120
+        group_spread: horizontal
+        group_intraspace: 80
+      - group_name: s1bleafs
+        group_node_definition: nxosv9000
+        group_node_names_prefix: s1bleaf
+        group_node_count: 2
+        interfaces_per_node: 10
+        group_mgmt_start_ip: 192.18.0.121
+        group_mgmt_subnet: 192.18.0.0/24
+        group_mgmt_gw_ip: 192.18.0.250
+        adjacent_to_group: s1leafs
+        group_spread: horizontal
+        group_intraspace: 80
+      - group_name: s1spines
+        group_node_definition: nxosv9000
+        group_node_names_prefix: s1spine
+        group_node_count: 2
+        interfaces_per_node: 10
+        group_mgmt_start_ip: 192.18.0.121
+        group_mgmt_subnet: 192.18.0.0/24
+        group_mgmt_gw_ip: 192.18.0.250
+        group_location:
+          x: 0
+          y: 0
+        group_spread: horizontal
+        group_intraspace: 80
+      - group_name: s1wan routers
+        group_node_definition: nxosv9000
+        group_node_names_prefix: s1wan
+        group_node_count: 2
+        interfaces_per_node: 10
+        group_mgmt_start_ip: 192.18.0.121
+        group_mgmt_subnet: 192.18.0.0/24
+        group_mgmt_gw_ip: 192.18.0.250
+        group_location:
+          x: 320
+          y: 280
+        group_spread: horizontal
+        group_intraspace: 80
+      - group_name: s1bgws
+        group_node_definition: nxosv9000
+        group_node_names_prefix: s1bgw
+        group_node_count: 2
+        interfaces_per_node: 10
+        group_mgmt_start_ip: 192.18.0.121
+        group_mgmt_subnet: 192.18.0.0/24
+        group_mgmt_gw_ip: 192.18.0.250
+        group_location:
+          x: 0
+          y: -160
+        group_spread: horizontal
+        group_intraspace: 80
+      - group_name: site 1 tiny linux hosts
+        group_node_definition: server
+        group_node_names_prefix: h
+        group_node_count: 4
+        interfaces_per_node: 2
+        group_mgmt_start_ip: 192.18.0.121
+        group_mgmt_subnet: 192.18.0.0/24
+        group_mgmt_gw_ip: 192.18.0.250
+        group_location:
+          x: 0
+          y: 240
+        group_spread: horizontal
+        group_intraspace: 80
+      - group_name: site 1 wan tiny linux hosts
+        group_node_definition: server
+        group_node_names_prefix: s1wanh
+        group_node_count: 2
+        interfaces_per_node: 2
+        group_mgmt_start_ip: 192.18.0.121
+        group_mgmt_subnet: 192.18.0.0/24
+        group_mgmt_gw_ip: 192.18.0.250
+        group_location:
+          x: 320
+          y: 360
+        group_spread: horizontal
+        group_intraspace: 80
+      ####################### Site 2 nodes #######################
+      - group_name: s2leafs
+        group_node_definition: nxosv9000
+        group_node_names_prefix: s2leaf
+        group_node_count: 4
+        interfaces_per_node: 10
+        group_mgmt_start_ip: 192.18.0.121
+        group_mgmt_subnet: 192.18.0.0/24
+        group_mgmt_gw_ip: 192.18.0.250
+        group_location:
+          x: 1080
+          y: 120
+        group_spread: horizontal
+        group_intraspace: 80
+      - group_name: s2bleafs
+        group_node_definition: nxosv9000
+        group_node_names_prefix: s2bleaf
+        group_node_count: 2
+        interfaces_per_node: 10
+        group_mgmt_start_ip: 192.18.0.121
+        group_mgmt_subnet: 192.18.0.0/24
+        group_mgmt_gw_ip: 192.18.0.250
+        adjacent_to_group: s2leafs
+        group_spread: horizontal
+        group_intraspace: 80
+      - group_name: s2spines
+        group_node_definition: nxosv9000
+        group_node_names_prefix: s2spine
+        group_node_count: 2
+        interfaces_per_node: 10
+        group_mgmt_start_ip: 192.18.0.121
+        group_mgmt_subnet: 192.18.0.0/24
+        group_mgmt_gw_ip: 192.18.0.250
+        group_location:
+          x: 1080
+          y: 0
+        group_spread: horizontal
+        group_intraspace: 80
+      - group_name: s2wan routers
+        group_node_definition: nxosv9000
+        group_node_names_prefix: s2wan
+        group_node_count: 2
+        interfaces_per_node: 10
+        group_mgmt_start_ip: 192.18.0.121
+        group_mgmt_subnet: 192.18.0.0/24
+        group_mgmt_gw_ip: 192.18.0.250
+        group_location:
+          x: 1400
+          y: 280
+        group_spread: horizontal
+        group_intraspace: 80
+      - group_name: s2bgws
+        group_node_definition: nxosv9000
+        group_node_names_prefix: s2bgw
+        group_node_count: 2
+        interfaces_per_node: 10
+        group_mgmt_start_ip: 192.18.0.121
+        group_mgmt_subnet: 192.18.0.0/24
+        group_mgmt_gw_ip: 192.18.0.250
+        group_location:
+          x: 1080
+          y: -160
+        group_spread: horizontal
+        group_intraspace: 80
+      - group_name: site 2 tiny linux hosts
+        group_node_definition: server
+        group_node_names_prefix: s2h
+        group_node_count: 4
+        interfaces_per_node: 2
+        group_mgmt_start_ip: 192.18.0.121
+        group_mgmt_subnet: 192.18.0.0/24
+        group_mgmt_gw_ip: 192.18.0.250
+        group_location:
+          x: 1080
+          y: 240
+        group_spread: horizontal
+        group_intraspace: 80
+      - group_name: site 2 wan tiny linux hosts
+        group_node_definition: server
+        group_node_names_prefix: s2wanh
+        group_node_count: 2
+        interfaces_per_node: 2
+        group_mgmt_start_ip: 192.18.0.121
+        group_mgmt_subnet: 192.18.0.0/24
+        group_mgmt_gw_ip: 192.18.0.250
+        group_location:
+          x: 1400
+          y: 360
+        group_spread: horizontal
+        group_intraspace: 80
+    topology:
+      ####################### Site 1 connections #######################
+      - node_group1: s1leafs
+        node_group2: s1spines
+        topology_type: CLOS_N_N
+        exclude_interfaces:
+          - "mgmt0"
+      - node_group1: s1bleafs
+        node_group2: s1spines
+        topology_type: CLOS_N_N
+        exclude_interfaces:
+          - "mgmt0"
+      - node_group1: s1bgws
+        node_group2: s1spines
+        topology_type: CLOS_N_N
+        exclude_interfaces:
+          - "mgmt0"
+      - node_group1: s1wan routers
+        node_group2: s1bleafs
+        topology_type: SQUARE_2_2
+        exclude_interfaces:
+          - "mgmt0"
+      - node_group1: msite isn device
+        node_group2: s1bgws
+        topology_type: STAR_1_N
+        exclude_interfaces:
+          - "mgmt0"
+      - node_group1: s1leafs
+        node_group2: site 1 tiny linux hosts
+        topology_type: STRAIGHT_N_N
+        exclude_interfaces:
+          - "mgmt0"
+      - node_group1: s1wan routers
+        node_group2: site 1 wan tiny linux hosts
+        topology_type: STRAIGHT_N_N
+        exclude_interfaces:
+          - "mgmt0"
+      ####################### Site 2 connections #######################
+      - node_group1: s2leafs
+        node_group2: s2spines
+        topology_type: CLOS_N_N
+        exclude_interfaces:
+          - "mgmt0"
+      - node_group1: s2bleafs
+        node_group2: s2spines
+        topology_type: CLOS_N_N
+        exclude_interfaces:
+          - "mgmt0"
+      - node_group1: s2bgws
+        node_group2: s2spines
+        topology_type: CLOS_N_N
+        exclude_interfaces:
+          - "mgmt0"
+      - node_group1: s2wan routers
+        node_group2: s2bleafs
+        topology_type: SQUARE_2_2
+        exclude_interfaces:
+          - "mgmt0"
+      - node_group1: msite isn device
+        node_group2: s2bgws
+        topology_type: STAR_1_N
+        exclude_interfaces:
+          - "mgmt0"
+      - node_group1: s2leafs
+        node_group2: site 2 tiny linux hosts
+        topology_type: STRAIGHT_N_N
+        exclude_interfaces:
+          - "mgmt0"
+      - node_group1: s2wan routers
+        node_group2: site 2 wan tiny linux hosts
+        topology_type: STRAIGHT_N_N
+        exclude_interfaces:
+          - "mgmt0"
+      ####################### Common nodes connections #######################
+      - node_group1: lab_ext_connection
+        node_group2: unmanaged switch
+        topology_type: STRAIGHT_N_N
+        exclude_interfaces:
+          - "mgmt0"
+      ####################### Mgmt connections #######################
+      - node_group1: unmanaged switch
+        node_group2: s1leafs
+        topology_type: STAR_1_N # there are no excluded interfaces, first free interface (mgmt0) will be picked up
+      - node_group1: unmanaged switch
+        node_group2: s1bleafs
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: s1spines
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: s1bgws
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: s1wan routers
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch # site 2
+        node_group2: s2leafs
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: s2bleafs
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: s2spines
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: s2bgws
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: s2wan routers
+        topology_type: STAR_1_N
+
+    

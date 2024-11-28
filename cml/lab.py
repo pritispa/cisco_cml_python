@@ -25,14 +25,12 @@ class CMLLab:
         self.existing_node_ids_list = []
 
     def create_lab(self, lab_title="New Lab 1", description="Lab created via automated python script", username="admin", notes="", force_clean = False) -> bool:
-        print("lab title is:")
-        print(lab_title)
         lab_exists = CMLLab.check_lab_exists(lab_title, self.client)
         if lab_exists:
             print(f"Lab with name {lab_title} already exists! Will not create the lab.")
             self.set_lab_parameters(lab_exists)
             if force_clean:
-                print ("Force clean is set to true, will wipe, stop and delete all existing nodes of this lab.")
+                print ("Force clean lab is set to true, will wipe, stop and delete all existing nodes of this lab.")
                 self.clean_existing_lab(lab_exists["id"])
             # If lab exists, store all the node ids of the lab. if clean operation is executed, this list will be empty
             self.existing_node_ids_list = CMLLab.list_lab_node_ids(lab_id=lab_exists["id"],cml_rest_client=self.client)
@@ -43,7 +41,6 @@ class CMLLab:
                 "description": description,
                 "notes": notes
             }
-        # print (rest_payload)
         r = self.client.cml_rest_req(
             target_uri = self.target_uri,
             method ="POST",

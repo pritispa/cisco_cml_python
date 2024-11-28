@@ -1,4 +1,5 @@
 import requests
+import sys
 
 class CMLRESTClient:
 
@@ -67,6 +68,4 @@ class CMLRESTClient:
         if login_reponse.status_code == 200:
             print (f"Login to CML {self.base_uri} successful!")
             self.token = str(login_reponse.json())
-            #self.token = login_reponse.text
-            #print(login_reponse.text)
         return login_reponse

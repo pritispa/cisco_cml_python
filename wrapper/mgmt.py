@@ -2,7 +2,7 @@ import os
 import jinja2
 import ipaddress
 import glob
-from locations import CONF_FILES_DIRECTORY, JINJA_DIRECTORY
+from locations import *
 
 class MgmtIps:
     MgmtSubnetsToUsedIps = {}
@@ -18,6 +18,20 @@ class MgmtIps:
         if subnet in cls.MgmtSubnetsToUsedIps:
             if candidate_ip in cls.MgmtSubnetsToUsedIps[subnet]:
                 return True
+        return False
+
+def is_valid_subnet(subnet_str):
+    try:
+        ipaddress.ip_network(subnet_str, strict=False)
+        return True
+    except ValueError:
+        return False
+
+def is_valid_ip(ip_str):
+    try:
+        ipaddress.ip_address(ip_str)
+        return True
+    except ValueError:
         return False
 
 def get_next_unused_ip(start_ip: str, subnet: str) -> str:
@@ -52,6 +66,7 @@ def read_conf_files(directory):
 def get_node_base_config(node_definition: str) -> str:
     base_configs = read_conf_files(CONF_FILES_DIRECTORY)
     if node_definition not in base_configs:
+        print(f"Warning: No base node config found for node definition {node_definition}")
         return ""
     return base_configs[node_definition]
 
@@ -62,6 +77,15 @@ def derive_mgmt_config(
         group_mgmt_gw_ip,
     ):
     config = ""
+    if not is_valid_ip (group_mgmt_start_ip) and  group_mgmt_start_ip != "":
+        print (f"group_mgmt_start_ip: {group_mgmt_start_ip} is not a valid ip. Mgmt config will not be generated")
+        return ""
+    if not is_valid_ip (group_mgmt_start_ip) and  group_mgmt_start_ip != "":
+        print (f"group_mgmt_gw_ip: {group_mgmt_gw_ip} is not a valid ip. Mgmt config will not be generated")
+        return ""
+    if not is_valid_subnet (group_mgmt_subnet) and  group_mgmt_subnet != "":
+        print (f"group_mgmt_subnet: {group_mgmt_subnet} is not a valid ip subnet. Mgmt config will not be generated")
+        return ""
     ip_address = get_next_unused_ip(group_mgmt_start_ip, group_mgmt_subnet)
     gw = group_mgmt_gw_ip
     mask = group_mgmt_subnet.split("/")[1]
@@ -71,11 +95,13 @@ def derive_mgmt_config(
         "mask": mask
     }
     env = jinja2.Environment(loader=jinja2.FileSystemLoader((".")))
+
     try:
         config_template = env.get_template(JINJA_DIRECTORY + "/" + group_node_definition + ".j2")
     except jinja2.exceptions.TemplateNotFound as e:
         print (f"Management config jinja template for node definition {group_node_definition} was not found in {JINJA_DIRECTORY} directory")
         print (f"Management configs will not be generated for nodes of type: {group_node_definition}")
+        print (f"TIP: Management config file should be named in the format [group_node_definition].j2 which in this case should be {group_node_definition}.j2")
         return ""
     config = config_template.render(vars)
     return config
