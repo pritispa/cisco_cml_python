@@ -83,6 +83,7 @@ class NodeGroup:
                 self.group_mgmt_subnet,
                 self.group_mgmt_start_ip,
                 self.group_mgmt_gw_ip,
+                self.get_node_name(i),
             )
             node.create_node(
                 label=self.get_node_name(i),

@@ -75,6 +75,7 @@ def derive_mgmt_config(
         group_mgmt_subnet,
         group_mgmt_start_ip,
         group_mgmt_gw_ip,
+        hostname,
     ):
     config = ""
     if not is_valid_ip (group_mgmt_start_ip) and  group_mgmt_start_ip != "":
@@ -92,7 +93,8 @@ def derive_mgmt_config(
     vars = {
         "gw" : gw,
         "ip_address" : ip_address,
-        "mask": mask
+        "mask": mask,
+        "hostname": hostname,
     }
     env = jinja2.Environment(loader=jinja2.FileSystemLoader((".")))
 

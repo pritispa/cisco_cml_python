@@ -1,4 +1,7 @@
-{% if gw is defined %}
+{% if hostname is defined %}
+hostname {{ hostname }}
+{% endif -%}
+{% if gw is defined -%}
 vrf context management
   ip route 0.0.0.0/0 {{ gw }}
 {% endif -%}
