@@ -1,0 +1,125 @@
+CML:
+  hostname: 10.76.50.163
+  username: admin
+  password: "ins3965!"
+
+labs:
+  - title: ND5_Large_EVPN
+    auto_location: true
+    node_group_defaults:
+      group_node_definition: nxosv9000
+      group_image_definition: nxosv9300-10-6-2-f
+      group_mgmt_start_ip: 198.18.1.21
+      group_mgmt_subnet: 198.18.0.0/16
+      group_mgmt_gw_ip: 198.18.1.1
+      group_spread: horizontal
+      group_intraspace: 80
+      interfaces_per_node: 10
+    node_groups:
+      ####################### Infrastructure #######################
+      - group_name: lab_ext_connection
+        group_node_definition: external_connector
+        group_image_definition: ""
+        group_node_names_prefix: ext
+        group_extra_configuration: bridge1
+        group_node_count: 1
+        interfaces_per_node: 1
+        group_mgmt_start_ip: ""
+        group_mgmt_subnet: ""
+        group_mgmt_gw_ip: ""
+      - group_name: unmanaged switch
+        group_node_definition: unmanaged_switch
+        group_image_definition: ""
+        group_node_names_prefix: un_sw
+        group_extra_configuration: ""
+        group_node_count: 1
+        interfaces_per_node: 30
+        group_mgmt_start_ip: ""
+        group_mgmt_subnet: ""
+        group_mgmt_gw_ip: ""
+      ####################### Spines (4x nxosv9500) #######################
+      - group_name: spines
+        group_image_definition: nxosv9500-10-6-2-f
+        group_node_names_prefix: spine
+        group_node_count: 4
+        interfaces_per_node: 20
+      ####################### Border Leafs (vPC pair) #######################
+      - group_name: bleafs
+        group_node_names_prefix: bleaf
+        group_node_count: 2
+        interfaces_per_node: 12
+      ####################### WAN Routers #######################
+      - group_name: wan_routers
+        group_node_names_prefix: wan
+        group_node_count: 2
+        interfaces_per_node: 5
+      ####################### Leafs (12 nodes, vPC pairs: 1-2, 3-4, 5-6, 7-8, 9-10, 11-12) #######################
+      - group_name: leafs
+        group_node_names_prefix: leaf
+        group_node_count: 12
+        interfaces_per_node: 35
+      ####################### Dual-Homed Hosts (150, distributed 25 per vPC pair via VPC_N_N) #######################
+      - group_name: hosts
+        group_node_definition: server
+        group_image_definition: ""
+        group_node_names_prefix: host
+        group_node_count: 150
+        interfaces_per_node: 3
+      ####################### WAN Hosts #######################
+      - group_name: wan_hosts
+        group_node_definition: server
+        group_image_definition: ""
+        group_node_names_prefix: wanh
+        group_node_count: 2
+        interfaces_per_node: 2
+    topology:
+      ####################### Leaf-Spine CLOS #######################
+      - node_group1: leafs
+        node_group2: spines
+        topology_type: CLOS_N_N
+        exclude_interfaces: ["mgmt0"]
+      ####################### Border Leaf to Spine CLOS #######################
+      - node_group1: bleafs
+        node_group2: spines
+        topology_type: CLOS_N_N
+        exclude_interfaces: ["mgmt0"]
+      ####################### vPC Peer Links (pairs: 1-2, 3-4, 5-6, etc.) #######################
+      - node_group1: leafs
+        topology_type: INTRA_GROUP_B2B2_N
+        exclude_interfaces: ["mgmt0"]
+      - node_group1: bleafs
+        topology_type: INTRA_GROUP_B2B2_N
+        exclude_interfaces: ["mgmt0"]
+      ####################### WAN to Border Leaf #######################
+      - node_group1: wan_routers
+        node_group2: bleafs
+        topology_type: STRAIGHT_N_N
+        exclude_interfaces: ["mgmt0"]
+      ####################### Dual-Homed Hosts via VPC_N_N (25 hosts per vPC leaf pair) #######################
+      - node_group1: leafs
+        node_group2: hosts
+        topology_type: VPC_N_N
+        exclude_interfaces: ["mgmt0"]
+      ####################### WAN Host Connections #######################
+      - node_group1: wan_routers
+        node_group2: wan_hosts
+        topology_type: STRAIGHT_N_N
+        exclude_interfaces: ["mgmt0"]
+      ####################### External Connectivity #######################
+      - node_group1: lab_ext_connection
+        node_group2: unmanaged switch
+        topology_type: STRAIGHT_N_N
+        exclude_interfaces: ["mgmt0"]
+      ####################### OOB Management (mgmt0 auto-picked) #######################
+      - node_group1: unmanaged switch
+        node_group2: spines
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: bleafs
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: wan_routers
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: leafs
+        topology_type: STAR_1_N

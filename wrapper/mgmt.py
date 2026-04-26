@@ -2,7 +2,10 @@ import os
 import jinja2
 import ipaddress
 import glob
-from locations import *
+
+# These defaults are overridden at runtime by main.py from config.yml
+CONF_FILES_DIRECTORY = "./default_configs"
+JINJA_DIRECTORY = "./j2"
 
 class MgmtIps:
     MgmtSubnetsToUsedIps = {}

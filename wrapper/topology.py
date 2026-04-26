@@ -11,6 +11,7 @@ class ValidTopology(Enum):
    STRAIGHT_N_N = "STRAIGHT_N_N"
    INTRA_GROUP_B2B_N = "INTRA_GROUP_B2B_N"
    INTRA_GROUP_B2B2_N = "INTRA_GROUP_B2B2_N"
+   VPC_N_N = "VPC_N_N"
    def __contains__(self: type[Any], value: object) -> bool:
       return super().__contains__(value)
 
@@ -136,6 +137,39 @@ class Topology:
                         exclude_interfaces = self.exclude_interfaces,
                     )
                     i=i+2
+            case ValidTopology.VPC_N_N:
+                # Group1 nodes form vPC pairs: (0,1), (2,3), (4,5), ...
+                # Group2 nodes are equally distributed and dual-homed to both nodes in their assigned pair
+                if not self.node_group2:
+                    print ("Warning! Both groups are mandatory for VPC_N_N topology.")
+                    print (f"Skipped connecting groups: {self.node_group1.group_name}")
+                    return
+                if self.node_group1.group_node_count < 2 or self.node_group1.group_node_count % 2 != 0:
+                    print ("Warning! Group 1 must have an even number of nodes (>=2) for VPC_N_N topology.")
+                    print (f"Skipped connecting groups: {self.node_group1.group_name} and {self.node_group2.group_name}")
+                    return
+                num_pairs = len(self.node_group1.nodes) // 2
+                num_hosts = len(self.node_group2.nodes)
+                hosts_per_pair = num_hosts // num_pairs
+                remainder = num_hosts % num_pairs
+                host_idx = 0
+                for p in range(num_pairs):
+                    vpc_node_a = self.node_group1.nodes[p * 2]
+                    vpc_node_b = self.node_group1.nodes[p * 2 + 1]
+                    # First 'remainder' pairs get one extra host for even distribution
+                    count = hosts_per_pair + (1 if p < remainder else 0)
+                    for _ in range(count):
+                        add_link_between_nodes(
+                            node1=vpc_node_a,
+                            node2=self.node_group2.nodes[host_idx],
+                            exclude_interfaces = self.exclude_interfaces,
+                        )
+                        add_link_between_nodes(
+                            node1=vpc_node_b,
+                            node2=self.node_group2.nodes[host_idx],
+                            exclude_interfaces = self.exclude_interfaces,
+                        )
+                        host_idx += 1
             case ValidTopology.FULL_MESH_N_N:
                 if not self.node_group2:
                     print ("Warning! Both groups are mandatory for FULL_MESH_N_N topology.")

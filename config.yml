@@ -1,0 +1,22 @@
+# CML Lab Builder Configuration
+# ================================
+
+# Paths to default device configs and jinja templates
+paths:
+  conf_files_directory: "./default_configs"
+  jinja_directory: "./j2"
+
+# Global flags that control build behavior
+flags:
+  # If true, existing nodes in a lab will be deleted before rebuilding
+  delete_existing_nodes: true
+  # If true, existing labs will be stopped, wiped, and all nodes deleted before rebuilding.
+  # If false, existing labs are skipped entirely.
+  force_rebuild: true
+
+# List of lab YAML files to build (processed in order)
+lab_files:
+  - "./ND5_Large_EVPN.yml"
+  # - "./ND5_Tiny_Multisite.yml"
+  # - "./ND5_5Stage_BGP.yml"
+  # - "./ND5_Classic_3Tier.yml"

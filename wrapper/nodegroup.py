@@ -5,6 +5,9 @@ from cml.position import CMLPosition
 from cml.node import CMLNode
 from wrapper.mgmt import *
 
+MAX_NODES_PER_ROW = 20
+ROW_SPACING = 80
+
 class NodeGroup:
     def __init__(
             self,
@@ -35,8 +38,8 @@ class NodeGroup:
             self.group_location = CMLPosition(x=0, y=0)
         else:
             self.group_location = group_location
-        if group_intraspace % 40 != 0:
-            print ("Error, creating group. group interspace should be a multiple of 40. Exiting...")
+        if group_intraspace < 40 or group_intraspace % 40 != 0:
+            print ("Error, creating group. group_intraspace must be >= 40 and a multiple of 40. Exiting...")
             sys.exit()
         self.group_intraspace = group_intraspace
         spread = ("horizontal","vertical")
@@ -102,12 +105,14 @@ class NodeGroup:
         return
     
     def get_node_coordinates(self, i: int):
+        row = i // MAX_NODES_PER_ROW
+        col = i % MAX_NODES_PER_ROW
         if self.group_spread == "horizontal":
-            x_pos = self.group_location.x + i*self.group_intraspace
-            y_pos = self.group_location.y
+            x_pos = self.group_location.x + col * self.group_intraspace
+            y_pos = self.group_location.y + row * ROW_SPACING
         else:
-            x_pos = self.group_location.x
-            y_pos = self.group_location.y - i*self.group_intraspace
+            x_pos = self.group_location.x + row * ROW_SPACING
+            y_pos = self.group_location.y - col * self.group_intraspace
         cml_pos = CMLPosition(x=x_pos, y=y_pos)
         return cml_pos
     
