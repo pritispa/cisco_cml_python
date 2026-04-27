@@ -6,17 +6,20 @@ paths:
   conf_files_directory: "./default_configs"
   jinja_directory: "./j2"
 
-# Global flags that control build behavior
+# Global flags that control labs-build behavior
 flags:
-  # If true, existing nodes in a lab will be deleted before rebuilding
-  delete_existing_nodes: true
-  # If true, existing labs will be stopped, wiped, and all nodes deleted before rebuilding.
-  # If false, existing labs are skipped entirely.
-  force_rebuild: true
+  # If update_existing_lab is set to true, existing labs will be updated to align with the node and links given in the config
+  # Any existing cabling will not be deleted. Any existing cabling which aligns with the lab yaml links, will be kept as is and no duplicate links will be created
+  # If update_existing_lab is set to false, existing labs will be skipped
+  update_existing_lab: true
+  # If update_existing_lab is set to true AND delete_existing_nodes is set to true, then the full existing topology and nodes will be deleted and rebuilt fresh
+  # If update_existing_lab is set to false, then delete_existing_nodes is ignored
+  # Use this option (delete_existing_nodes: true), if you want the lab build exactly as per lab yaml with no extra nodes or extra cabling left over from existing lab
+  delete_existing_nodes: false
 
 # List of lab YAML files to build (processed in order)
 lab_files:
-  - "./ND5_Large_EVPN.yml"
-  # - "./ND5_Tiny_Multisite.yml"
-  # - "./ND5_5Stage_BGP.yml"
-  # - "./ND5_Classic_3Tier.yml"
+  - "./examples/VXLAN_EVPN_LARGE.yml"
+  - "./examples/VXLAN_EVPN_TINY_MULTISITE.yml"
+  - "./examples/BGP_ROUTED_5STAGE.yml"
+  - "./examples/CLASSIC_3TIER.yml"

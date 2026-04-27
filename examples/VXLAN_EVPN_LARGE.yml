@@ -1,10 +1,10 @@
 CML:
-  hostname: 10.76.50.163
+  hostname: 10.10.10.10
   username: admin
-  password: "ins3965!"
+  password: "admin123"
 
 labs:
-  - title: ND5_Large_EVPN
+  - title: SITE1_VXLAN_EVPN_LARGE
     auto_location: true
     node_group_defaults:
       group_node_definition: nxosv9000

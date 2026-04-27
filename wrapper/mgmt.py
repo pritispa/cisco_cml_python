@@ -2,6 +2,7 @@ import os
 import jinja2
 import ipaddress
 import glob
+from cml.colors import print_warning, print_error
 
 # These defaults are overridden at runtime by main.py from config.yml
 CONF_FILES_DIRECTORY = "./default_configs"
@@ -41,12 +42,12 @@ def get_next_unused_ip(start_ip: str, subnet: str) -> str:
     network = ipaddress.ip_network(subnet, strict=False)
     ip = ipaddress.ip_address(start_ip)
     if ip not in network:
-        print(f"The start IP address {start_ip} is not within the subnet {subnet}")
+        print_error(f"The start IP address {start_ip} is not within the subnet {subnet}")
         return None
     next_ip = ip
     while True:
         if next_ip not in network:
-            print(f"There is no next IP available within the subnet {subnet}")
+            print_error(f"There is no next IP available within the subnet {subnet}")
             return None
         if MgmtIps.check_if_ip_used(str(next_ip), subnet):
             next_ip = next_ip + 1
@@ -69,7 +70,7 @@ def read_conf_files(directory):
 def get_node_base_config(node_definition: str) -> str:
     base_configs = read_conf_files(CONF_FILES_DIRECTORY)
     if node_definition not in base_configs:
-        print(f"Warning: No base node config found for node definition {node_definition}")
+        print_warning(f"Warning: No base node config found for node definition {node_definition}")
         return ""
     return base_configs[node_definition]
 
@@ -82,13 +83,13 @@ def derive_mgmt_config(
     ):
     config = ""
     if not is_valid_ip (group_mgmt_start_ip) and  group_mgmt_start_ip != "":
-        print (f"group_mgmt_start_ip: {group_mgmt_start_ip} is not a valid ip. Mgmt config will not be generated")
+        print_warning(f"group_mgmt_start_ip: {group_mgmt_start_ip} is not a valid ip. Mgmt config will not be generated")
         return ""
     if not is_valid_ip (group_mgmt_start_ip) and  group_mgmt_start_ip != "":
-        print (f"group_mgmt_gw_ip: {group_mgmt_gw_ip} is not a valid ip. Mgmt config will not be generated")
+        print_warning(f"group_mgmt_gw_ip: {group_mgmt_gw_ip} is not a valid ip. Mgmt config will not be generated")
         return ""
     if not is_valid_subnet (group_mgmt_subnet) and  group_mgmt_subnet != "":
-        print (f"group_mgmt_subnet: {group_mgmt_subnet} is not a valid ip subnet. Mgmt config will not be generated")
+        print_warning(f"group_mgmt_subnet: {group_mgmt_subnet} is not a valid ip subnet. Mgmt config will not be generated")
         return ""
     ip_address = get_next_unused_ip(group_mgmt_start_ip, group_mgmt_subnet)
     gw = group_mgmt_gw_ip
@@ -104,9 +105,9 @@ def derive_mgmt_config(
     try:
         config_template = env.get_template(JINJA_DIRECTORY + "/" + group_node_definition + ".j2")
     except jinja2.exceptions.TemplateNotFound as e:
-        print (f"Management config jinja template for node definition {group_node_definition} was not found in {JINJA_DIRECTORY} directory")
-        print (f"Management configs will not be generated for nodes of type: {group_node_definition}")
-        print (f"TIP: Management config file should be named in the format [group_node_definition].j2 which in this case should be {group_node_definition}.j2")
+        print_warning(f"Management config jinja template for node definition {group_node_definition} was not found in {JINJA_DIRECTORY} directory")
+        print_warning(f"Management configs will not be generated for nodes of type: {group_node_definition}")
+        print_warning(f"TIP: Management config file should be named in the format [group_node_definition].j2 which in this case should be {group_node_definition}.j2")
         return ""
     config = config_template.render(vars)
     return config

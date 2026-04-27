@@ -1,5 +1,6 @@
 import sys
 from cml.client import CMLRESTClient
+from cml.colors import print_create, print_update, print_delete, print_warning, print_error
 
 class CMLLab:
 
@@ -24,18 +25,18 @@ class CMLLab:
         self.target_uri="/labs"
         self.existing_node_ids_list = []
 
-    def create_lab(self, lab_title="New Lab 1", description="Lab created via automated python script", username="admin", notes="", force_clean = False) -> bool:
+    def create_lab(self, lab_title="New Lab 1", description="Lab created via automated python script", username="admin", notes="", delete_existing_nodes = False) -> bool:
         lab_exists = CMLLab.check_lab_exists(lab_title, self.client)
         if lab_exists:
-            print(f"Lab with name {lab_title} already exists! Will not create the lab.")
+            print_warning(f"Lab with name {lab_title} already exists! Will not create the lab.")
             self.set_lab_parameters(lab_exists)
-            if force_clean:
-                print ("Force clean lab is set to true, will wipe, stop and delete all existing nodes of this lab.")
+            if delete_existing_nodes:
+                print_delete("delete_existing_nodes is set to true, will wipe, stop and delete all existing nodes of this lab.")
                 self.clean_existing_lab(lab_exists["id"])
             # If lab exists, store all the node ids of the lab. if clean operation is executed, this list will be empty
             self.existing_node_ids_list = CMLLab.list_lab_node_ids(lab_id=lab_exists["id"],cml_rest_client=self.client)
             return False
-        print(f"Proceeding to create the Lab {lab_title}...")
+        print_create(f"Proceeding to create the Lab {lab_title}...")
         rest_payload = {
                 "title": lab_title,
                 "description": description,
@@ -47,11 +48,11 @@ class CMLLab:
             payload_data = rest_payload
         )
         if not r:
-            print (f"Failed to create the lab {lab_title}. Exiting...")
+            print_error(f"Failed to create the lab {lab_title}. Exiting...")
             sys.exit()
         self.set_lab_parameters(r.json())
-        print (f"Lab {lab_title} created successfully!")
-        print (f"Lab id: {self.id}")
+        print_create(f"Lab {lab_title} created successfully!")
+        print_create(f"Lab id: {self.id}")
         return True
 
     def set_lab_parameters(self, parameters: dict) -> None:
@@ -86,7 +87,7 @@ class CMLLab:
             method ="GET"
         )
         if not r:
-            print (f"Failed to get all nodes for deletion in lab {lab_id}. Exiting...")
+            print_error(f"Failed to get all nodes for deletion in lab {lab_id}. Exiting...")
             sys.exit()
         node_ids = r.json()
         # Stop nodes
@@ -96,7 +97,7 @@ class CMLLab:
             method ="PUT"
         )
         if not r:
-            print (f"Failed to stop all nodes for deletion in lab {lab_id}. Exiting...")
+            print_error(f"Failed to stop all nodes for deletion in lab {lab_id}. Exiting...")
             sys.exit()
         # Wipe nodes
         target_uri = f"/labs/{lab_id}/wipe"
@@ -105,7 +106,7 @@ class CMLLab:
             method ="PUT"
         )
         if not r:
-            print (f"Failed to wipe all nodes for deletion in lab {lab_id}. Exiting...")
+            print_error(f"Failed to wipe all nodes for deletion in lab {lab_id}. Exiting...")
             sys.exit()
         # Delete nodes
         for node_id in node_ids:
@@ -115,7 +116,7 @@ class CMLLab:
                 method ="DELETE"
             )
             if not r:
-                print (f"Failed to delete node {node_id} during deletion of all nodes in lab {lab_id}. Exiting...")
+                print_error(f"Failed to delete node {node_id} during deletion of all nodes in lab {lab_id}. Exiting...")
                 sys.exit()
 
     @staticmethod
@@ -126,8 +127,32 @@ class CMLLab:
             method ="GET"
         )
         if not r:
-            print (f"Failed to get all node ids for the lab: {lab_id}. Exiting...")
+            print_error(f"Failed to get all node ids for the lab: {lab_id}. Exiting...")
             sys.exit()
+        return r.json()
+
+    @staticmethod
+    def list_lab_nodes_data(lab_id: str, cml_rest_client: CMLRESTClient) -> list:
+        target_uri = f"/labs/{lab_id}/nodes?data=true"
+        r = cml_rest_client.cml_rest_req(
+            target_uri = target_uri,
+            method ="GET"
+        )
+        if not r:
+            print_error(f"Failed to fetch nodes with data for lab: {lab_id}.")
+            return []
+        return r.json()
+
+    @staticmethod
+    def list_lab_links_data(lab_id: str, cml_rest_client: CMLRESTClient) -> list:
+        target_uri = f"/labs/{lab_id}/links?data=true"
+        r = cml_rest_client.cml_rest_req(
+            target_uri = target_uri,
+            method ="GET"
+        )
+        if not r:
+            print_error(f"Failed to fetch links with data for lab: {lab_id}.")
+            return []
         return r.json()
 
     @staticmethod
@@ -138,7 +163,7 @@ class CMLLab:
             method ="GET"
         )
         if not r:
-            print (f"Failed to fetch lab lists")
+            print_error(f"Failed to fetch lab lists")
             return None
         return r.json()
     
@@ -150,6 +175,6 @@ class CMLLab:
             method ="GET"
         )
         if not r:
-            print (f"Failed to fetch lab title using lab id {lab_id}")
+            print_error(f"Failed to fetch lab title using lab id {lab_id}")
             return None
         return r.json()

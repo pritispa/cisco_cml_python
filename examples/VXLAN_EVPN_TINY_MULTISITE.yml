@@ -1,0 +1,202 @@
+CML:
+  hostname: 10.10.10.10
+  username: admin
+  password: "admin123"
+
+labs:
+  - title: SITE2_TINY_VXLAN_MULTISITE
+    auto_location: true
+    node_group_defaults:
+      group_node_definition: nxosv9000
+      group_image_definition: nxosv9300-10-6-2-f
+      group_mgmt_start_ip: 198.18.1.228
+      group_mgmt_subnet: 198.18.0.0/16
+      group_mgmt_gw_ip: 198.18.1.1
+      group_spread: horizontal
+      group_intraspace: 80
+      interfaces_per_node: 10
+    node_groups:
+      ####################### Infrastructure #######################
+      - group_name: lab_ext_connection
+        group_node_definition: external_connector
+        group_image_definition: ""
+        group_node_names_prefix: ext
+        group_extra_configuration: bridge1
+        group_node_count: 1
+        interfaces_per_node: 1
+        group_mgmt_start_ip: ""
+        group_mgmt_subnet: ""
+        group_mgmt_gw_ip: ""
+      - group_name: unmanaged switch
+        group_node_definition: unmanaged_switch
+        group_image_definition: ""
+        group_node_names_prefix: un_sw
+        group_extra_configuration: ""
+        group_node_count: 1
+        interfaces_per_node: 30
+        group_mgmt_start_ip: ""
+        group_mgmt_subnet: ""
+        group_mgmt_gw_ip: ""
+      ####################### Multisite ISN #######################
+      - group_name: msite_isn
+        group_node_names_prefix: isn
+        group_node_count: 1
+      ####################### Site 1 #######################
+      - group_name: s1spine
+        group_image_definition: nxosv9500-10-6-2-f
+        group_node_names_prefix: s1spine
+        group_node_count: 1
+      - group_name: s1leafs
+        group_node_names_prefix: s1leaf
+        group_node_count: 2
+      - group_name: s1bleaf
+        group_node_names_prefix: s1bleaf
+        group_node_count: 1
+      - group_name: s1bgw
+        group_node_names_prefix: s1bgw
+        group_node_count: 1
+      - group_name: s1wan
+        group_node_names_prefix: s1wan
+        group_node_count: 1
+        interfaces_per_node: 5
+      - group_name: s1hosts
+        group_node_definition: server
+        group_image_definition: ""
+        group_node_names_prefix: s1h
+        group_node_count: 2
+        interfaces_per_node: 2
+      - group_name: s1wanhost
+        group_node_definition: server
+        group_image_definition: ""
+        group_node_names_prefix: s1wh
+        group_node_count: 1
+        interfaces_per_node: 2
+      ####################### Site 2 #######################
+      - group_name: s2spine
+        group_image_definition: nxosv9500-10-6-2-f
+        group_node_names_prefix: s2spine
+        group_node_count: 1
+      - group_name: s2leafs
+        group_node_names_prefix: s2leaf
+        group_node_count: 2
+      - group_name: s2bleaf
+        group_node_names_prefix: s2bleaf
+        group_node_count: 1
+      - group_name: s2bgw
+        group_node_names_prefix: s2bgw
+        group_node_count: 1
+      - group_name: s2wan
+        group_node_names_prefix: s2wan
+        group_node_count: 1
+        interfaces_per_node: 5
+      - group_name: s2hosts
+        group_node_definition: server
+        group_image_definition: ""
+        group_node_names_prefix: s2h
+        group_node_count: 2
+        interfaces_per_node: 2
+      - group_name: s2wanhost
+        group_node_definition: server
+        group_image_definition: ""
+        group_node_names_prefix: s2wh
+        group_node_count: 1
+        interfaces_per_node: 2
+    topology:
+      ####################### Site 1 fabric #######################
+      - node_group1: s1leafs
+        node_group2: s1spine
+        topology_type: CLOS_N_N
+        exclude_interfaces: ["mgmt0"]
+      - node_group1: s1bleaf
+        node_group2: s1spine
+        topology_type: CLOS_N_N
+        exclude_interfaces: ["mgmt0"]
+      - node_group1: s1bgw
+        node_group2: s1spine
+        topology_type: CLOS_N_N
+        exclude_interfaces: ["mgmt0"]
+      - node_group1: s1wan
+        node_group2: s1bleaf
+        topology_type: STRAIGHT_N_N
+        exclude_interfaces: ["mgmt0"]
+      - node_group1: s1leafs
+        node_group2: s1hosts
+        topology_type: STRAIGHT_N_N
+        exclude_interfaces: ["mgmt0"]
+      - node_group1: s1wan
+        node_group2: s1wanhost
+        topology_type: STRAIGHT_N_N
+        exclude_interfaces: ["mgmt0"]
+      ####################### Site 2 fabric #######################
+      - node_group1: s2leafs
+        node_group2: s2spine
+        topology_type: CLOS_N_N
+        exclude_interfaces: ["mgmt0"]
+      - node_group1: s2bleaf
+        node_group2: s2spine
+        topology_type: CLOS_N_N
+        exclude_interfaces: ["mgmt0"]
+      - node_group1: s2bgw
+        node_group2: s2spine
+        topology_type: CLOS_N_N
+        exclude_interfaces: ["mgmt0"]
+      - node_group1: s2wan
+        node_group2: s2bleaf
+        topology_type: STRAIGHT_N_N
+        exclude_interfaces: ["mgmt0"]
+      - node_group1: s2leafs
+        node_group2: s2hosts
+        topology_type: STRAIGHT_N_N
+        exclude_interfaces: ["mgmt0"]
+      - node_group1: s2wan
+        node_group2: s2wanhost
+        topology_type: STRAIGHT_N_N
+        exclude_interfaces: ["mgmt0"]
+      ####################### Multisite ISN to BGWs #######################
+      - node_group1: msite_isn
+        node_group2: s1bgw
+        topology_type: STAR_1_N
+        exclude_interfaces: ["mgmt0"]
+      - node_group1: msite_isn
+        node_group2: s2bgw
+        topology_type: STAR_1_N
+        exclude_interfaces: ["mgmt0"]
+      ####################### External Connectivity #######################
+      - node_group1: lab_ext_connection
+        node_group2: unmanaged switch
+        topology_type: STRAIGHT_N_N
+        exclude_interfaces: ["mgmt0"]
+      ####################### OOB Management #######################
+      - node_group1: unmanaged switch
+        node_group2: s1spine
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: s1leafs
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: s1bleaf
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: s1bgw
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: s1wan
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: s2spine
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: s2leafs
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: s2bleaf
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: s2bgw
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: s2wan
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: msite_isn
+        topology_type: STAR_1_N

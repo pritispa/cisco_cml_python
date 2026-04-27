@@ -1,0 +1,136 @@
+CML:
+  hostname: 10.10.10.10
+  username: admin
+  password: "admin123"
+
+labs:
+  - title: SITE4_CLASSIC_3TIER
+    auto_location: true
+    node_group_defaults:
+      group_node_definition: nxosv9000
+      group_image_definition: nxosv9300-10-6-2-f
+      group_mgmt_start_ip: 198.18.2.21
+      group_mgmt_subnet: 198.18.0.0/16
+      group_mgmt_gw_ip: 198.18.1.1
+      group_spread: horizontal
+      group_intraspace: 80
+      interfaces_per_node: 10
+    node_groups:
+      ####################### Infrastructure #######################
+      - group_name: lab_ext_connection
+        group_node_definition: external_connector
+        group_image_definition: ""
+        group_node_names_prefix: ext
+        group_extra_configuration: bridge1
+        group_node_count: 1
+        interfaces_per_node: 1
+        group_mgmt_start_ip: ""
+        group_mgmt_subnet: ""
+        group_mgmt_gw_ip: ""
+      - group_name: unmanaged switch
+        group_node_definition: unmanaged_switch
+        group_image_definition: ""
+        group_node_names_prefix: un_sw
+        group_extra_configuration: ""
+        group_node_count: 1
+        interfaces_per_node: 20
+        group_mgmt_start_ip: ""
+        group_mgmt_subnet: ""
+        group_mgmt_gw_ip: ""
+      ####################### Core Layer (2x nxosv9500) #######################
+      - group_name: core
+        group_image_definition: nxosv9500-10-6-2-f
+        group_node_names_prefix: core
+        group_node_count: 2
+        interfaces_per_node: 12
+      ####################### Aggregation Layer Pair 1 (nxosv9500) #######################
+      - group_name: agg_pair1
+        group_image_definition: nxosv9500-10-6-2-f
+        group_node_names_prefix: agg1
+        group_node_count: 2
+      ####################### Aggregation Layer Pair 2 (nxosv9500) #######################
+      - group_name: agg_pair2
+        group_image_definition: nxosv9500-10-6-2-f
+        group_node_names_prefix: agg2
+        group_node_count: 2
+      ####################### Access Layer Group 1 #######################
+      - group_name: access_grp1
+        group_node_names_prefix: acc1
+        group_node_count: 2
+      ####################### Access Layer Group 2 #######################
+      - group_name: access_grp2
+        group_node_names_prefix: acc2
+        group_node_count: 2
+      ####################### Hosts #######################
+      - group_name: hosts_grp1
+        group_node_definition: server
+        group_image_definition: ""
+        group_node_names_prefix: h1
+        group_node_count: 2
+        interfaces_per_node: 2
+      - group_name: hosts_grp2
+        group_node_definition: server
+        group_image_definition: ""
+        group_node_names_prefix: h2
+        group_node_count: 2
+        interfaces_per_node: 2
+    topology:
+      ####################### Core interconnect (redundant links) #######################
+      - node_group1: core
+        topology_type: INTRA_GROUP_B2B2_N
+        exclude_interfaces: ["mgmt0"]
+      ####################### Aggregation to Core CLOS #######################
+      - node_group1: agg_pair1
+        node_group2: core
+        topology_type: CLOS_N_N
+        exclude_interfaces: ["mgmt0"]
+      - node_group1: agg_pair2
+        node_group2: core
+        topology_type: CLOS_N_N
+        exclude_interfaces: ["mgmt0"]
+      ####################### Aggregation vPC peer links #######################
+      - node_group1: agg_pair1
+        topology_type: INTRA_GROUP_B2B2_N
+        exclude_interfaces: ["mgmt0"]
+      - node_group1: agg_pair2
+        topology_type: INTRA_GROUP_B2B2_N
+        exclude_interfaces: ["mgmt0"]
+      ####################### Access to Aggregation CLOS (dual-homed) #######################
+      - node_group1: access_grp1
+        node_group2: agg_pair1
+        topology_type: CLOS_N_N
+        exclude_interfaces: ["mgmt0"]
+      - node_group1: access_grp2
+        node_group2: agg_pair2
+        topology_type: CLOS_N_N
+        exclude_interfaces: ["mgmt0"]
+      ####################### Host Connections #######################
+      - node_group1: access_grp1
+        node_group2: hosts_grp1
+        topology_type: STRAIGHT_N_N
+        exclude_interfaces: ["mgmt0"]
+      - node_group1: access_grp2
+        node_group2: hosts_grp2
+        topology_type: STRAIGHT_N_N
+        exclude_interfaces: ["mgmt0"]
+      ####################### External Connectivity #######################
+      - node_group1: lab_ext_connection
+        node_group2: unmanaged switch
+        topology_type: STRAIGHT_N_N
+        exclude_interfaces: ["mgmt0"]
+      ####################### OOB Management #######################
+      - node_group1: unmanaged switch
+        node_group2: core
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: agg_pair1
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: agg_pair2
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: access_grp1
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: access_grp2
+        topology_type: STAR_1_N

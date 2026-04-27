@@ -1,0 +1,149 @@
+CML:
+  hostname: 10.10.10.10
+  username: admin
+  password: "admin123"
+
+labs:
+  - title: SITE3_BGP_ROUTED
+    auto_location: true
+    node_group_defaults:
+      group_node_definition: nxosv9000
+      group_image_definition: nxosv9300-10-6-2-f
+      group_mgmt_start_ip: 198.18.2.1
+      group_mgmt_subnet: 198.18.0.0/16
+      group_mgmt_gw_ip: 198.18.1.1
+      group_spread: horizontal
+      group_intraspace: 80
+      interfaces_per_node: 10
+    node_groups:
+      ####################### Infrastructure #######################
+      - group_name: lab_ext_connection
+        group_node_definition: external_connector
+        group_image_definition: ""
+        group_node_names_prefix: ext
+        group_extra_configuration: bridge1
+        group_node_count: 1
+        interfaces_per_node: 1
+        group_mgmt_start_ip: ""
+        group_mgmt_subnet: ""
+        group_mgmt_gw_ip: ""
+      - group_name: unmanaged switch
+        group_node_definition: unmanaged_switch
+        group_image_definition: ""
+        group_node_names_prefix: un_sw
+        group_extra_configuration: ""
+        group_node_count: 1
+        interfaces_per_node: 25
+        group_mgmt_start_ip: ""
+        group_mgmt_subnet: ""
+        group_mgmt_gw_ip: ""
+      ####################### Super Spines (5-stage top tier) #######################
+      - group_name: super_spines
+        group_image_definition: nxosv9500-10-6-2-f
+        group_node_names_prefix: sspine
+        group_node_count: 2
+        interfaces_per_node: 15
+      ####################### Border Leafs (DCI / external) #######################
+      - group_name: border_leafs
+        group_node_names_prefix: blf
+        group_node_count: 2
+      ####################### Pod 1 Spines #######################
+      - group_name: pod1_spines
+        group_image_definition: nxosv9500-10-6-2-f
+        group_node_names_prefix: p1spine
+        group_node_count: 2
+      ####################### Pod 1 Leafs (vPC pair) #######################
+      - group_name: pod1_leafs
+        group_node_names_prefix: p1leaf
+        group_node_count: 2
+        interfaces_per_node: 12
+      ####################### Pod 2 Spines #######################
+      - group_name: pod2_spines
+        group_image_definition: nxosv9500-10-6-2-f
+        group_node_names_prefix: p2spine
+        group_node_count: 2
+      ####################### Pod 2 Leafs (vPC pair) #######################
+      - group_name: pod2_leafs
+        group_node_names_prefix: p2leaf
+        group_node_count: 2
+        interfaces_per_node: 12
+      ####################### Hosts (1 per access leaf) #######################
+      - group_name: pod1_hosts
+        group_node_definition: server
+        group_image_definition: ""
+        group_node_names_prefix: p1h
+        group_node_count: 2
+        interfaces_per_node: 2
+      - group_name: pod2_hosts
+        group_node_definition: server
+        group_image_definition: ""
+        group_node_names_prefix: p2h
+        group_node_count: 2
+        interfaces_per_node: 2
+    topology:
+      ####################### Super Spine to Pod Spines (1:1 uplink per spine) #######################
+      - node_group1: pod1_spines
+        node_group2: super_spines
+        topology_type: STRAIGHT_N_N
+        exclude_interfaces: ["mgmt0"]
+      - node_group1: pod2_spines
+        node_group2: super_spines
+        topology_type: STRAIGHT_N_N
+        exclude_interfaces: ["mgmt0"]
+      ####################### Border Leafs to Super Spines #######################
+      - node_group1: border_leafs
+        node_group2: super_spines
+        topology_type: CLOS_N_N
+        exclude_interfaces: ["mgmt0"]
+      ####################### Pod internal Leaf-Spine CLOS #######################
+      - node_group1: pod1_leafs
+        node_group2: pod1_spines
+        topology_type: CLOS_N_N
+        exclude_interfaces: ["mgmt0"]
+      - node_group1: pod2_leafs
+        node_group2: pod2_spines
+        topology_type: CLOS_N_N
+        exclude_interfaces: ["mgmt0"]
+      ####################### vPC Peer Links #######################
+      - node_group1: pod1_leafs
+        topology_type: INTRA_GROUP_B2B2_N
+        exclude_interfaces: ["mgmt0"]
+      - node_group1: pod2_leafs
+        topology_type: INTRA_GROUP_B2B2_N
+        exclude_interfaces: ["mgmt0"]
+      - node_group1: border_leafs
+        topology_type: INTRA_GROUP_B2B2_N
+        exclude_interfaces: ["mgmt0"]
+      ####################### Host Connections #######################
+      - node_group1: pod1_leafs
+        node_group2: pod1_hosts
+        topology_type: STRAIGHT_N_N
+        exclude_interfaces: ["mgmt0"]
+      - node_group1: pod2_leafs
+        node_group2: pod2_hosts
+        topology_type: STRAIGHT_N_N
+        exclude_interfaces: ["mgmt0"]
+      ####################### External Connectivity #######################
+      - node_group1: lab_ext_connection
+        node_group2: unmanaged switch
+        topology_type: STRAIGHT_N_N
+        exclude_interfaces: ["mgmt0"]
+      ####################### OOB Management #######################
+      - node_group1: unmanaged switch
+        node_group2: super_spines
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: border_leafs
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: pod1_spines
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: pod1_leafs
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: pod2_spines
+        topology_type: STAR_1_N
+      - node_group1: unmanaged switch
+        node_group2: pod2_leafs
+        topology_type: STAR_1_N

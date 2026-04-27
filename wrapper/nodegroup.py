@@ -3,6 +3,7 @@ import sys
 from cml.lab import CMLLab
 from cml.position import CMLPosition
 from cml.node import CMLNode
+from cml.colors import print_error
 from wrapper.mgmt import *
 
 MAX_NODES_PER_ROW = 20
@@ -39,12 +40,12 @@ class NodeGroup:
         else:
             self.group_location = group_location
         if group_intraspace < 40 or group_intraspace % 40 != 0:
-            print ("Error, creating group. group_intraspace must be >= 40 and a multiple of 40. Exiting...")
+            print_error("Error, creating group. group_intraspace must be >= 40 and a multiple of 40. Exiting...")
             sys.exit()
         self.group_intraspace = group_intraspace
         spread = ("horizontal","vertical")
         if group_spread not in spread:
-            print ("Error, creating group. group spread can either be horizontal or vertical. Exiting...")
+            print_error("Error, creating group. group spread can either be horizontal or vertical. Exiting...")
             sys.exit()
         self.group_spread = group_spread #horizontal or vertical
         if adjacent_to_position:
@@ -71,7 +72,7 @@ class NodeGroup:
         self.delete_existing_nodes = delete_existing_nodes
         self.nodes = []
     
-    def build(self):
+    def build(self, existing_nodes_by_label: dict = None):
         # flush any existing nodes
         self.nodes = []
         mgmt_config_push = False
@@ -88,15 +89,27 @@ class NodeGroup:
                 self.group_mgmt_gw_ip,
                 self.get_node_name(i),
             )
-            node.create_node(
-                label=self.get_node_name(i),
-                position = self.get_node_coordinates(i),
-                image_definition = self.group_image_definition,
-                configuration = self.group_configuration + mgmt_config,
-                node_definition = self.group_node_definition,
-                interface_count= self.interfaces_per_node,
-                force_delete=self.delete_existing_nodes,
-            )
+            label = self.get_node_name(i)
+            if existing_nodes_by_label is not None and label in existing_nodes_by_label:
+                node.create_or_update_node(
+                    label=label,
+                    position = self.get_node_coordinates(i),
+                    image_definition = self.group_image_definition,
+                    configuration = self.group_configuration + mgmt_config,
+                    node_definition = self.group_node_definition,
+                    interface_count= self.interfaces_per_node,
+                    existing_node_data = existing_nodes_by_label[label],
+                )
+            else:
+                node.create_node(
+                    label=label,
+                    position = self.get_node_coordinates(i),
+                    image_definition = self.group_image_definition,
+                    configuration = self.group_configuration + mgmt_config,
+                    node_definition = self.group_node_definition,
+                    interface_count= self.interfaces_per_node,
+                    force_delete=self.delete_existing_nodes,
+                )
             self.nodes.append(node)
             if i == 0:
                 self.group_first_node_position = self.get_node_coordinates(i)

@@ -1,5 +1,6 @@
 from cml.lab import CMLLab
 import sys
+from cml.colors import print_error
 
 class CMLLink:
     def __init__(self) -> None:
@@ -18,6 +19,6 @@ class CMLLink:
             payload_data = rest_payload
         )
         if not r:
-            print (f"Failed to create links between interfaces {interface_set[0]} and {interface_set[1]}. Exiting...")
+            print_error(f"Failed to create links between interfaces {interface_set[0]} and {interface_set[1]}. Exiting...")
             sys.exit()
         return r.json()["id"]

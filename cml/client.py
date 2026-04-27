@@ -1,5 +1,6 @@
 import requests
 import sys
+from cml.colors import print_create, print_error
 
 class CMLRESTClient:
 
@@ -44,8 +45,8 @@ class CMLRESTClient:
         cml_reponse = self.session.send(prepared_request, verify=self.verify, timeout=request_timeout)
         success_codes = (200,204) # PUT requests return 200 or 204. DELETE requests return 204
         if cml_reponse.status_code not in success_codes:
-            print (f"Failed CML REST operation: {op_description}")
-            print (f"Status code: {cml_reponse.status_code} Error: {cml_reponse.text}")
+            print_error(f"Failed CML REST operation: {op_description}")
+            print_error(f"Status code: {cml_reponse.status_code} Error: {cml_reponse.text}")
             return None
         return cml_reponse
 
@@ -62,10 +63,10 @@ class CMLRESTClient:
             is_login_request = True
         )
         if not login_reponse:
-            print (f"Login to CML {self.base_uri} failed.")
-            print ("Please check the username and password and try again. Exiting...")
+            print_error(f"Login to CML {self.base_uri} failed.")
+            print_error("Please check the username and password and try again. Exiting...")
             sys.exit(1)
         if login_reponse.status_code == 200:
-            print (f"Login to CML {self.base_uri} successful!")
+            print_create(f"Login to CML {self.base_uri} successful!")
             self.token = str(login_reponse.json())
         return login_reponse
