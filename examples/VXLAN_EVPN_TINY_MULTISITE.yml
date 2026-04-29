@@ -1,7 +1,7 @@
 CML:
-  hostname: 10.10.10.10
+  hostname: 10.76.50.163
   username: admin
-  password: "admin123"
+  password: "ins3965!"
 
 labs:
   - title: SITE2_TINY_VXLAN_MULTISITE

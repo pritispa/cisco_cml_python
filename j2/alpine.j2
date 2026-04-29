@@ -1,0 +1,18 @@
+- name: node.cfg
+  content: |
+    # this is a shell script which will be sourced at boot
+    hostname {{ hostname }}
+    # configurable user account
+    USERNAME=cisco
+    PASSWORD=cisco
+    {%- if dhcp is defined and dhcp %}
+    udhcpc -i eth0 &
+    {%- elif ip_address is defined %}
+    ifconfig eth0 {{ ip_address }}/{{ mask }} up
+    {%- if gw is defined %}
+    route add default gw {{ gw }}
+    {%- endif %}
+    {%- endif %}
+    {%- if extra_configuration is defined and extra_configuration %}
+    {{ extra_configuration }}
+    {%- endif %}

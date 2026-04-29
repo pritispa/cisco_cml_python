@@ -34,7 +34,7 @@ class CMLNode:
         self.label = ""
         self.node_definition = ""
         self.image_definition = ""
-        self.configuration = ""
+        self.configuration = None
         # lab container of this node
         self.cml_lab = cml_lab
         self.position = {}
@@ -42,13 +42,14 @@ class CMLNode:
         # Node is created with 10 interfaces by default
         self.interface_count = 10
         self.interfaces = []
+        self.mgmt_ip = ""
     
     def create_node (
             self,
             label: str,
             position: CMLPosition,
             image_definition: str = "",
-            configuration: str = "",
+            configuration: list = None,
             node_definition: str = "nxosv9000",
             interface_count: int = 10,
             force_delete = False,
@@ -173,7 +174,17 @@ class CMLNode:
         self.label = node_data["label"]
         self.node_definition = node_data.get("node_definition", "")
         self.image_definition = node_data.get("image_definition") or ""
-        self.configuration = node_data.get("configuration") or ""
+        raw_config = node_data.get("configuration")
+        if raw_config is None:
+            self.configuration = None
+        elif isinstance(raw_config, str):
+            self.configuration = [{"name": "Main", "content": raw_config}]
+        elif isinstance(raw_config, dict):
+            self.configuration = [raw_config]
+        elif isinstance(raw_config, list):
+            self.configuration = raw_config
+        else:
+            self.configuration = None
         self.position = CMLPosition(x=node_data.get("x", 0), y=node_data.get("y", 0))
         self.refresh_node_interfaces_status()
 
@@ -270,7 +281,7 @@ class CMLNode:
             label: str,
             position: CMLPosition,
             image_definition: str = "",
-            configuration: str = "",
+            configuration: list = None,
             node_definition: str = "nxosv9000",
             interface_count: int = 10,
             existing_node_data: dict = None,
@@ -318,8 +329,8 @@ class CMLNode:
             needs_stop_wipe = True
 
         # configuration
-        existing_cfg = self.configuration or ""
-        desired_cfg = configuration or ""
+        existing_cfg = self.configuration
+        desired_cfg = configuration
         if existing_cfg != desired_cfg:
             patch_payload["configuration"] = desired_cfg
 
@@ -370,6 +381,13 @@ class CMLNode:
             return cml_intf.id
         return None
 
+def _intf_label_by_id(node: CMLNode, intf_id: str) -> str:
+    """Resolve an interface ID to its human-readable label."""
+    for intf in node.interfaces:
+        if intf.id == intf_id:
+            return intf.label
+    return intf_id
+
 def add_link_between_nodes(node1: CMLNode, node2: CMLNode, exclude_interfaces: list, existing_link_counts: dict = None):
     # In update mode, check if a link between these two nodes already exists
     if existing_link_counts is not None:
@@ -398,5 +416,12 @@ def add_link_between_nodes(node1: CMLNode, node2: CMLNode, exclude_interfaces: l
         print_create(f"Link connected between {node1.label}, {node2.label}!")
         node1.set_node_interfaces_connected_status(intf_id = node1_intf, is_connected = True)
         node2.set_node_interfaces_connected_status(intf_id = node2_intf, is_connected = True)
-        return link_id
+        return {
+            "node_a": node1.label,
+            "node_a_mgmt_ip": node1.mgmt_ip or "-",
+            "port_a": _intf_label_by_id(node1, node1_intf),
+            "node_b": node2.label,
+            "node_b_mgmt_ip": node2.mgmt_ip or "-",
+            "port_b": _intf_label_by_id(node2, node2_intf),
+        }
     return None

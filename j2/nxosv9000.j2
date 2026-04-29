@@ -1,12 +1,44 @@
-{% if hostname is defined %}
-hostname {{ hostname }}
-{% endif -%}
-{% if gw is defined -%}
-vrf context management
-  ip route 0.0.0.0/0 {{ gw }}
-{% endif -%}
-{% if ip_address is defined -%}
-interface mgmt 0
-  ip address {{ ip_address }}/{{ mask }}
-  no cdp enable
-{% endif %}
+- name: nxos_config.txt
+  content: |
+    hostname {{ hostname }}
+    echo 'from cli import cli' > set_boot.py
+    echo 'import json' >> set_boot.py
+    echo 'import os' >> set_boot.py
+    echo 'import time' >> set_boot.py
+    echo 'bootimage = json.loads(cli("show version | json"))["kick_file_name"]' >> set_boot.py
+    echo 'set_boot = cli("conf t ; boot nxos {} ; no event manager applet BOOTCONFIG".format(bootimage))' >> set_boot.py
+    echo 'i = 0' >> set_boot.py
+    echo 'while i < 10:' >> set_boot.py
+    echo '    try:' >> set_boot.py
+    echo '        save_config = cli("copy running-config startup-config")' >> set_boot.py
+    echo '        break' >> set_boot.py
+    echo '    except Exception:' >> set_boot.py
+    echo '        i += 1' >> set_boot.py
+    echo '        time.sleep(1)' >> set_boot.py
+    echo 'os.remove("/bootflash/set_boot.py")' >> set_boot.py
+    event manager applet BOOTCONFIG
+     event syslog pattern "Configured from vty"
+     action 1.0 cli python bootflash:set_boot.py
+    no password strength-check
+    username cisco role network-admin
+    username cisco password cisco role network-admin
+    username admin role network-admin
+    username admin password Ci$co12345 role network-admin
+    {%- if dhcp is defined and dhcp %}
+    interface mgmt 0
+      ip address dhcp
+      no cdp enable
+    {%- else %}
+    {%- if gw is defined %}
+    vrf context management
+      ip route 0.0.0.0/0 {{ gw }}
+    {%- endif %}
+    {%- if ip_address is defined %}
+    interface mgmt 0
+      ip address {{ ip_address }}/{{ mask }}
+      no cdp enable
+    {%- endif %}
+    {%- endif %}
+    {%- if extra_configuration is defined and extra_configuration %}
+    {{ extra_configuration }}
+    {%- endif %}

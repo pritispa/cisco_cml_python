@@ -1,0 +1,44 @@
+- name: user-data
+  content: |
+    #cloud-config
+    hostname: {{ hostname }}
+    manage_etc_hosts: true
+    
+    # Using the users block is more robust than system_info
+    users:
+      - name: cisco
+        sudo: ALL=(ALL) NOPASSWD:ALL
+        shell: /bin/bash
+        lock_passwd: false
+        ssh_authorized_keys:
+          - your-ssh-pubkey-line-goes-here
+
+    chpasswd:
+      list: |
+        cisco:cisco
+      expire: False
+
+    ssh_pwauth: True
+
+
+- name: network-config
+  content: |
+    #network-config
+    network:
+      version: 2
+      renderer: networkd
+    {%- if dhcp is defined and dhcp %}
+      ethernets:
+        ens2:
+          dhcp4: true
+    {%- elif ip_address is defined %}
+      ethernets:
+        ens2:
+          addresses:
+          - {{ ip_address }}/{{ mask }}
+      {%- if gw is defined %}
+          routes:
+            - to: default
+              via: {{ gw }}
+      {%- endif %}
+    {%- endif %}

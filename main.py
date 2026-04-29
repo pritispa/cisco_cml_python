@@ -1,3 +1,4 @@
+import csv
 import logging
 import os
 import urllib3
@@ -26,7 +27,7 @@ CONFIG_FILE = os.environ.get("CML_CONFIG_FILE", "./config.yml")
 # ---------------------------------------------------------------------------
 
 REQUIRED_CONFIG_KEYS = ("paths", "flags", "lab_files")
-REQUIRED_PATH_KEYS = ("conf_files_directory", "jinja_directory")
+REQUIRED_PATH_KEYS = ("jinja_directory",)
 REQUIRED_FLAG_KEYS = ("delete_existing_nodes", "update_existing_lab")
 
 def read_from_yml(file_path: str) -> Any:
@@ -81,6 +82,181 @@ def get_node_group_by_name(nglist: list, ng_name: str) -> NodeGroup:
         if ng.group_name == ng_name:
             return ng
     return None
+
+def validate_topology_ports(node_groups_raw: list, topology_raw: list,
+                            node_group_defaults: dict = None) -> bool:
+    """Validate that each node group has enough interfaces for all topology connections.
+
+    Prints a colour-coded summary table and returns True when every group has
+    sufficient ports, False otherwise.
+    """
+    BOLD  = "\033[1m"
+    _RED   = "\033[91m"
+    _GREEN = "\033[92m"
+    _RESET = "\033[0m"
+
+    # ---- build effective group properties (merge defaults) ----
+    groups = {}
+    group_order = []
+    for ng_raw in node_groups_raw:
+        if node_group_defaults:
+            ng = {**node_group_defaults, **{k: v for k, v in ng_raw.items() if v is not None}}
+        else:
+            ng = dict(ng_raw)
+        name = ng.get("group_name")
+        groups[name] = {
+            "node_count": ng.get("group_node_count", 1),
+            "node_definition": ng.get("group_node_definition", ""),
+            "image_definition": ng.get("group_image_definition", ""),
+            "interfaces_per_node": ng.get("interfaces_per_node", 10),
+            "prefix": ng.get("group_node_names_prefix", ""),
+            "mgmt_start_ip": ng.get("group_mgmt_start_ip", ""),
+            "mgmt_subnet": ng.get("group_mgmt_subnet", ""),
+            "mgmt_dhcp": ng.get("group_mgmt_dhcp", False),
+        }
+        group_order.append(name)
+
+    # ---- per-node connection counts ----
+    connections = {name: [0] * groups[name]["node_count"] for name in group_order}
+
+    for topo in (topology_raw or []):
+        g1 = topo.get("node_group1")
+        g2 = topo.get("node_group2")
+        ttype = (topo.get("topology_type") or "").upper()
+
+        if not g1 or g1 not in groups:
+            continue
+        g1_count = groups[g1]["node_count"]
+        g2_count = groups[g2]["node_count"] if g2 and g2 in groups else 0
+
+        if ttype == "CLOS_N_N":
+            for i in range(g1_count):
+                connections[g1][i] += g2_count
+            for j in range(g2_count):
+                connections[g2][j] += g1_count
+
+        elif ttype == "VPC_N_N":
+            if g1_count >= 2 and g2_count > 0:
+                num_pairs = g1_count // 2
+                hpp = g2_count // num_pairs
+                rem = g2_count % num_pairs
+                for p in range(num_pairs):
+                    c = hpp + (1 if p < rem else 0)
+                    connections[g1][p * 2] += c
+                    connections[g1][p * 2 + 1] += c
+                for j in range(g2_count):
+                    connections[g2][j] += 2
+
+        elif ttype == "SQUARE_2_2":
+            for i in range(min(2, g1_count)):
+                connections[g1][i] += 2
+            if g2 and g2 in groups:
+                for j in range(min(2, g2_count)):
+                    connections[g2][j] += 2
+
+        elif ttype == "STAR_1_N":
+            if g1_count >= 1 and g2_count > 0:
+                connections[g1][0] += g2_count
+                for j in range(g2_count):
+                    connections[g2][j] += 1
+
+        elif ttype == "STRAIGHT_N_N":
+            if g2 and g2 in groups:
+                for i in range(min(g1_count, g2_count)):
+                    connections[g1][i] += 1
+                    connections[g2][i] += 1
+
+        elif ttype == "INTRA_GROUP_B2B_N":
+            for i in range(0, g1_count - 1, 2):
+                connections[g1][i] += 1
+                connections[g1][i + 1] += 1
+
+        elif ttype == "INTRA_GROUP_B2B2_N":
+            for i in range(0, g1_count - 1, 2):
+                connections[g1][i] += 2
+                connections[g1][i + 1] += 2
+
+        elif ttype == "FULL_MESH_N_N":
+            if g2 and g2 in groups:
+                total = g1_count + g2_count
+                for i in range(g1_count):
+                    connections[g1][i] += total - 1
+                for j in range(g2_count):
+                    connections[g2][j] += total - 1
+
+    # ---- build table rows ----
+    any_failure = False
+    rows = []
+    for name in group_order:
+        info = groups[name]
+        count = info["node_count"]
+        prefix = info["prefix"]
+        specified = info["interfaces_per_node"]
+
+        max_conn = max(connections[name]) if connections[name] else 0
+        min_ports = max_conn
+
+        # Device names
+        devices = f"{prefix}1" if count == 1 else f"{prefix}1 - {prefix}{count}"
+
+        # Mgmt IPs
+        if info["mgmt_dhcp"]:
+            mgmt_ips = "DHCP"
+        elif info["mgmt_start_ip"]:
+            mgmt_ips = info["mgmt_start_ip"] if count == 1 else f"{info['mgmt_start_ip']} (+{count})"
+        else:
+            mgmt_ips = "-"
+
+        passed = min_ports <= specified
+        if not passed:
+            any_failure = True
+
+        rows.append({
+            "group": name,
+            "devices": devices,
+            "mgmt_ips": mgmt_ips,
+            "image": info["image_definition"] or "-",
+            "node_type": info["node_definition"] or "-",
+            "specified": str(specified),
+            "min_ports": str(min_ports),
+            "passed": passed,
+        })
+
+    # ---- print table ----
+    headers = ["Node Group", "Devices", "Mgmt IPs", "Image", "Node Type",
+               "Ports (cfg)", "Min Ports Req"]
+    col_keys = ["group", "devices", "mgmt_ips", "image", "node_type",
+                "specified", "min_ports"]
+    col_widths = [len(h) for h in headers]
+    for row in rows:
+        for i, key in enumerate(col_keys):
+            col_widths[i] = max(col_widths[i], len(row[key]))
+
+    sep = "+-" + "-+-".join("-" * w for w in col_widths) + "-+"
+    def _fmt_row(vals, color_last=None):
+        parts = []
+        for i, v in enumerate(vals):
+            if i == len(vals) - 1 and color_last:
+                parts.append(f"{color_last}{v:<{col_widths[i]}}{_RESET}")
+            else:
+                parts.append(f"{v:<{col_widths[i]}}")
+        return "| " + " | ".join(parts) + " |"
+
+    print(f"\n{BOLD}Port Validation Summary{_RESET}")
+    print(sep)
+    print(_fmt_row(headers))
+    print(sep)
+    for row in rows:
+        vals = [row[k] for k in col_keys]
+        color = _GREEN if row["passed"] else _RED
+        print(_fmt_row(vals, color_last=color))
+    print(sep)
+    print()
+
+    if any_failure:
+        print_error("Port validation FAILED. One or more node groups do not have enough interfaces.")
+        print_error("Please redesign the topology or increase interfaces_per_node for the affected groups.\n")
+    return not any_failure
 
 def _auto_intraspace(node_count: int, node_definition: str) -> int:
     """Compute optimal intra-group spacing (always a multiple of 40, minimum 40)."""
@@ -247,6 +423,7 @@ def compute_auto_layout(node_groups_raw: list, topology_raw: list, node_group_de
     # ---- compute (x, y) positions via subtree-based layout ----
     LAYER_GAP = 120     # vertical gap between a parent's bottom and its children
     GROUP_GAP = 120     # horizontal gap between sibling subtrees
+    MAX_ROW_NODES = 30  # max first-row nodes across sibling groups in one visual row
 
     def _group_width(name):
         info = groups[name]
@@ -258,6 +435,10 @@ def compute_auto_layout(node_groups_raw: list, topology_raw: list, node_group_de
         rows = (info["node_count"] + MAX_NODES_PER_ROW - 1) // MAX_NODES_PER_ROW
         return max(0, rows - 1) * ROW_SPACING
 
+    def _first_row_nodes(name):
+        """Number of nodes in the first visual row of a group."""
+        return min(groups[name]["node_count"], MAX_NODES_PER_ROW)
+
     # Build primary-parent children map (each child under exactly one parent)
     primary_children = {}
     assigned = set()
@@ -268,29 +449,25 @@ def compute_auto_layout(node_groups_raw: list, topology_raw: list, node_group_de
     for parent in primary_children:
         primary_children[parent].sort(key=lambda c: group_order.index(c))
 
-    # Compute y per layer based on parent chain (not uniform layer height)
-    parent_map = {}
-    for parent, child in above_edges:
-        parent_map.setdefault(child, []).append(parent)
+    def _pack_children_into_subrows(children):
+        """Pack children into sub-rows so each has <= MAX_ROW_NODES first-row nodes."""
+        subrows = []
+        current_row = []
+        current_count = 0
+        for child in children:
+            child_nodes = _first_row_nodes(child)
+            if current_count + child_nodes > MAX_ROW_NODES and current_row:
+                subrows.append(current_row)
+                current_row = [child]
+                current_count = child_nodes
+            else:
+                current_row.append(child)
+                current_count += child_nodes
+        if current_row:
+            subrows.append(current_row)
+        return subrows
 
-    layer_y = {}
-    for layer in sorted_layers:
-        if layer == sorted_layers[0]:
-            layer_y[layer] = 0
-            continue
-        max_y = 0
-        for name in layer_groups[layer]:
-            for p in parent_map.get(name, []):
-                p_y = layer_y[layers[p]]
-                p_h = _group_height(p)
-                max_y = max(max_y, p_y + p_h + LAYER_GAP)
-        if max_y == 0:
-            prev_layer = sorted_layers[sorted_layers.index(layer) - 1]
-            prev_h = max(_group_height(n) for n in layer_groups[prev_layer])
-            max_y = layer_y[prev_layer] + prev_h + LAYER_GAP
-        layer_y[layer] = max_y
-
-    # Compute subtree widths bottom-up (for horizontal allocation)
+    # Compute subtree widths bottom-up (accounts for sub-row wrapping)
     _stw_cache = {}
     def _subtree_width(name):
         if name in _stw_cache:
@@ -300,52 +477,77 @@ def compute_auto_layout(node_groups_raw: list, topology_raw: list, node_group_de
         if not children:
             _stw_cache[name] = own_w
             return own_w
-        children_w = sum(_subtree_width(c) for c in children) \
-                     + max(0, len(children) - 1) * GROUP_GAP
-        result = max(own_w, children_w)
+        subrows = _pack_children_into_subrows(children)
+        max_subrow_w = max(
+            sum(_subtree_width(c) for c in sr) + max(0, len(sr) - 1) * GROUP_GAP
+            for sr in subrows
+        )
+        result = max(own_w, max_subrow_w)
         _stw_cache[name] = result
         return result
 
-    # Top-down recursive positioning
+    # Compute subtree total heights (for vertical sub-row stacking)
+    _sth_cache = {}
+    def _subtree_total_height(name):
+        if name in _sth_cache:
+            return _sth_cache[name]
+        own_h = _group_height(name)
+        children = primary_children.get(name, [])
+        if not children:
+            _sth_cache[name] = own_h
+            return own_h
+        subrows = _pack_children_into_subrows(children)
+        children_h = 0
+        for sr in subrows:
+            children_h += LAYER_GAP + max(_subtree_total_height(c) for c in sr)
+        result = own_h + children_h
+        _sth_cache[name] = result
+        return result
+
+    # Top-down recursive positioning (Y computed from parent, sub-rows stacked vertically)
     positions = {}
-    def _position_subtree(name, alloc_left, alloc_right):
+    def _position_subtree(name, alloc_left, alloc_right, y):
         own_w   = _group_width(name)
         alloc_w = alloc_right - alloc_left
         x = alloc_left + (alloc_w - own_w) // 2
-        y = layer_y[layers[name]]
         positions[name] = {"x": x, "y": y, "intraspace": groups[name]["intraspace"]}
         children = primary_children.get(name, [])
         if not children:
             return
-        child_stws     = [_subtree_width(c) for c in children]
-        total_child_w  = sum(child_stws) + max(0, len(children) - 1) * GROUP_GAP
-        child_start    = alloc_left + (alloc_w - total_child_w) // 2
-        cx = child_start
-        for i, child in enumerate(children):
-            _position_subtree(child, cx, cx + child_stws[i])
-            cx += child_stws[i] + GROUP_GAP
+        subrows = _pack_children_into_subrows(children)
+        child_y = y + _group_height(name) + LAYER_GAP
+        for sr in subrows:
+            sr_stws = [_subtree_width(c) for c in sr]
+            total_sr_w = sum(sr_stws) + max(0, len(sr) - 1) * GROUP_GAP
+            child_start = alloc_left + (alloc_w - total_sr_w) // 2
+            cx = child_start
+            for i, child in enumerate(sr):
+                _position_subtree(child, cx, cx + sr_stws[i], child_y)
+                cx += sr_stws[i] + GROUP_GAP
+            sr_max_h = max(_subtree_total_height(c) for c in sr)
+            child_y += sr_max_h + LAYER_GAP
 
     # Position data-plane roots and their subtrees
     root_stws     = [_subtree_width(r) for r in roots]
     total_roots_w = sum(root_stws) + max(0, len(roots) - 1) * GROUP_GAP
     cx = 0
     for i, root in enumerate(roots):
-        _position_subtree(root, cx, cx + root_stws[i])
+        _position_subtree(root, cx, cx + root_stws[i], 0)
         cx += root_stws[i] + GROUP_GAP
 
     # Position infrastructure nodes centered above the data tree
     canvas_w = max(total_roots_w, 1)
-    for name in infra_names:
+    infra_y_cursor = 0
+    for name in reversed(infra_names):
+        infra_y_cursor -= (_group_height(name) + LAYER_GAP)
         own_w = _group_width(name)
         x = (canvas_w - own_w) // 2
-        y = layer_y[layers[name]]
-        positions[name] = {"x": x, "y": y, "intraspace": groups[name]["intraspace"]}
+        positions[name] = {"x": x, "y": infra_y_cursor, "intraspace": groups[name]["intraspace"]}
 
     # Position any orphan groups not reached by the tree traversal
     for name in group_order:
         if name not in positions:
-            positions[name] = {"x": 0, "y": layer_y.get(layers[name], 0),
-                               "intraspace": groups[name]["intraspace"]}
+            positions[name] = {"x": 0, "y": 0, "intraspace": groups[name]["intraspace"]}
 
     logger.debug("Auto-layout layers: %s",
                  {layer: layer_groups[layer] for layer in sorted_layers})
@@ -374,7 +576,7 @@ def create_node_groups(ngroups: list, lab: CMLLab, delete_existing_nodes: bool,
             group_node_names_prefix = ng.get("group_node_names_prefix", None),
             group_node_count = ng.get("group_node_count", None),
             interfaces_per_node = ng.get("interfaces_per_node", 10),
-            group_configuration = ng.get("group_extra_configuration", ""),
+            group_extra_configuration = ng.get("group_extra_configuration", ""),
             group_location = loc,
             adjacent_to_position = adj_pos,
             group_spread = ng.get("group_spread", None),
@@ -382,8 +584,10 @@ def create_node_groups(ngroups: list, lab: CMLLab, delete_existing_nodes: bool,
             group_mgmt_start_ip = ng.get("group_mgmt_start_ip", ""),
             group_mgmt_subnet = ng.get("group_mgmt_subnet", ""),
             group_mgmt_gw_ip = ng.get("group_mgmt_gw_ip", ""),
+            group_mgmt_dhcp = ng.get("group_mgmt_dhcp", False),
             group_image_definition = ng.get("group_image_definition", ""),
             delete_existing_nodes = ng.get("delete_existing_nodes", delete_existing_nodes),
+            group_delete_existing = ng.get("group_delete_existing", False),
             cml_lab = lab,
         )
         node_groups.append(ng_instance)
@@ -392,7 +596,7 @@ def create_node_groups(ngroups: list, lab: CMLLab, delete_existing_nodes: bool,
 
 def create_topology (topology_list: list, node_groups: list, lab: CMLLab,
                      existing_link_counts: dict = None) -> list:
-    topologies = []
+    all_records = []
     for tp in topology_list:
         ng_name1 = tp.get("node_group1","")
         ng_name2 = tp.get("node_group2","")
@@ -408,15 +612,64 @@ def create_topology (topology_list: list, node_groups: list, lab: CMLLab,
             topology_type= tp.get("topology_type","CLOS_N_N"),
             existing_link_counts= existing_link_counts,
         )
-        topologies.append(tp_instance)
-        tp_instance.build()
-    return topologies
+        records = tp_instance.build()
+        if records:
+            all_records.extend(records)
+    return all_records
+
+def print_connectivity_table(records: list):
+    """Print a formatted connectivity matrix table to the terminal."""
+    if not records:
+        print("\nNo new links were created.\n")
+        return
+
+    BOLD  = "\033[1m"
+    _RESET = "\033[0m"
+
+    headers = ["Device A", "Mgmt IP A", "Port A", "Device B", "Mgmt IP B", "Port B"]
+    keys    = ["node_a",  "node_a_mgmt_ip", "port_a", "node_b",  "node_b_mgmt_ip", "port_b"]
+
+    col_widths = [len(h) for h in headers]
+    for rec in records:
+        for i, key in enumerate(keys):
+            col_widths[i] = max(col_widths[i], len(str(rec.get(key, ""))))
+
+    sep = "+-" + "-+-".join("-" * w for w in col_widths) + "-+"
+    def _fmt(vals):
+        return "| " + " | ".join(f"{v:<{col_widths[i]}}" for i, v in enumerate(vals)) + " |"
+
+    print(f"\n{BOLD}Connectivity Matrix ({len(records)} links){_RESET}")
+    print(sep)
+    print(_fmt(headers))
+    print(sep)
+    for rec in records:
+        print(_fmt([str(rec.get(k, "")) for k in keys]))
+    print(sep)
+    print()
+
+def save_connectivity_csv(records: list, lab_yaml_file: str):
+    """Save the connectivity matrix to a CSV file derived from the lab YAML filename."""
+    if not records:
+        return
+    base = os.path.splitext(lab_yaml_file)[0]
+    csv_path = f"{base}_gen_matrix.csv"
+
+    headers = ["Device A", "Mgmt IP A", "Port A", "Device B", "Mgmt IP B", "Port B"]
+    keys    = ["node_a",  "node_a_mgmt_ip", "port_a", "node_b",  "node_b_mgmt_ip", "port_b"]
+
+    with open(csv_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(headers)
+        for rec in records:
+            writer.writerow([str(rec.get(k, "")) for k in keys])
+    logger.info(f"Connectivity matrix saved to {csv_path}")
 
 # ---------------------------------------------------------------------------
 # Single lab build
 # ---------------------------------------------------------------------------
 
-def build_single_lab(lab_raw: dict, my_cml: CMLRESTClient, flags: dict) -> bool:
+def build_single_lab(lab_raw: dict, my_cml: CMLRESTClient, flags: dict,
+                     lab_yaml_file: str = "") -> bool:
     lab_title = lab_raw.get("title", "Untitled Lab")
     update_existing_lab = lab_raw.get("update_existing_lab", flags["update_existing_lab"])
     delete_existing_nodes = flags["delete_existing_nodes"]
@@ -436,11 +689,15 @@ def build_single_lab(lab_raw: dict, my_cml: CMLRESTClient, flags: dict) -> bool:
         logger.info(f"Lab '{lab_title}' already exists and update_existing_lab=false. Skipping this lab build.")
         return True
     
-    logger.info(f"Lab '{lab_title}' does not exist or update_existing_lab=false. Creating new lab.")
-    lab_created = my_lab.create_lab(lab_title=lab_title, delete_existing_nodes=delete_existing_nodes)
     node_group_defaults = lab_raw.get("node_group_defaults", {})
     node_groups_list_raw = lab_raw.get("node_groups", [])
     topology_list_raw = lab_raw.get("topology", [])
+
+    # Validate topology port requirements before creating anything on CML
+    if not validate_topology_ports(node_groups_list_raw, topology_list_raw, node_group_defaults):
+        return False
+
+    lab_created = my_lab.create_lab(lab_title=lab_title, delete_existing_nodes=delete_existing_nodes)
 
     # ---- Update mode: fetch existing nodes & links ----
     existing_nodes_by_label = None
@@ -485,10 +742,13 @@ def build_single_lab(lab_raw: dict, my_cml: CMLRESTClient, flags: dict) -> bool:
         node_group_defaults=node_group_defaults,
         existing_nodes_by_label=existing_nodes_by_label,
     )
-    create_topology(
+    connectivity_records = create_topology(
         topology_list=topology_list_raw, node_groups=node_groups, lab=my_lab,
         existing_link_counts=existing_link_counts,
     )
+    print_connectivity_table(connectivity_records)
+    if lab_yaml_file:
+        save_connectivity_csv(connectivity_records, lab_yaml_file)
     logger.info(f"Lab '{lab_title}' built successfully.")
     return True
 
@@ -505,7 +765,6 @@ def main():
 
     # Expose paths for mgmt.py via module-level globals (replaces locations.py)
     import wrapper.mgmt as mgmt_module
-    mgmt_module.CONF_FILES_DIRECTORY = paths["conf_files_directory"]
     mgmt_module.JINJA_DIRECTORY = paths["jinja_directory"]
 
     succeeded = []
@@ -541,7 +800,7 @@ def main():
         for lab_raw in labs_raw:
             lab_title = lab_raw.get("title", "Untitled Lab")
             try:
-                build_single_lab(lab_raw, my_cml, flags)
+                build_single_lab(lab_raw, my_cml, flags, lab_yaml_file=lab_file)
             except Exception as e:
                 logger.error(f"Failed to build lab '{lab_title}' from '{lab_file}': {e}")
                 file_failed = True

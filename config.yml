@@ -15,11 +15,12 @@ flags:
   # If update_existing_lab is set to true AND delete_existing_nodes is set to true, then the full existing topology and nodes will be deleted and rebuilt fresh
   # If update_existing_lab is set to false, then delete_existing_nodes is ignored
   # Use this option (delete_existing_nodes: true), if you want the lab build exactly as per lab yaml with no extra nodes or extra cabling left over from existing lab
-  delete_existing_nodes: false
+  delete_existing_nodes: true
 
 # List of lab YAML files to build (processed in order)
 lab_files:
-  - "./examples/VXLAN_EVPN_LARGE.yml"
-  - "./examples/VXLAN_EVPN_TINY_MULTISITE.yml"
-  - "./examples/BGP_ROUTED_5STAGE.yml"
-  - "./examples/CLASSIC_3TIER.yml"
+  # - "./examples/VXLAN_EVPN_LARGE.yml"
+  # - "./examples/VXLAN_EVPN_TINY_MULTISITE.yml"
+  # - "./examples/BGP_ROUTED_5STAGE.yml"
+  # - "./examples/CLASSIC_3TIER.yml"
+  - "./VXLAN_EVPN_LARGE_BGL.yml"

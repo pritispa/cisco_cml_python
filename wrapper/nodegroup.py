@@ -6,7 +6,7 @@ from cml.node import CMLNode
 from cml.colors import print_error
 from wrapper.mgmt import *
 
-MAX_NODES_PER_ROW = 20
+MAX_NODES_PER_ROW = 30
 ROW_SPACING = 80
 
 class NodeGroup:
@@ -22,13 +22,15 @@ class NodeGroup:
             group_node_definition: str,
             group_intraspace: int = 80,
             group_image_definition: str = "",
-            group_configuration: str = "",
+            group_extra_configuration: str = "",
             interfaces_per_node: int = 10,
             group_mgmt_subnet: str = "",
             group_mgmt_start_ip: str = "",
             group_mgmt_gw_ip: str = "",
+            group_mgmt_dhcp: bool = False,
             # It is recommended to keep delete_existing_nodes = true, since any existing nodes will not be cabled/connected
             delete_existing_nodes: bool = True,
+            group_delete_existing: bool = False,
             group_location: CMLPosition = None,
             adjacent_to_position: CMLPosition = None, # specify a position to be adjacent to
             group_first_node_position: CMLPosition = None, #automatically populated
@@ -63,39 +65,35 @@ class NodeGroup:
         self.group_mgmt_subnet = group_mgmt_subnet
         self.group_mgmt_start_ip = group_mgmt_start_ip
         self.group_mgmt_gw_ip = group_mgmt_gw_ip
-        base_config = get_node_base_config(group_node_definition)
-        if group_configuration:
-            self.group_configuration = base_config + group_configuration
-        else:
-            self.group_configuration = base_config
+        self.group_mgmt_dhcp = group_mgmt_dhcp
+        self.group_extra_configuration = group_extra_configuration
         self.interfaces_per_node = interfaces_per_node
         self.delete_existing_nodes = delete_existing_nodes
+        self.group_delete_existing = group_delete_existing
         self.nodes = []
     
     def build(self, existing_nodes_by_label: dict = None):
         # flush any existing nodes
         self.nodes = []
-        mgmt_config_push = False
-        mgmt_config = ""
-        if self.group_mgmt_subnet or self.group_mgmt_start_ip or self.group_mgmt_gw_ip:
-            mgmt_config_push = True
         for i in range (self.group_node_count):
             node = CMLNode(self.cml_lab)
-            if mgmt_config_push:
-                mgmt_config = derive_mgmt_config(
-                self.group_node_definition,
-                self.group_mgmt_subnet,
-                self.group_mgmt_start_ip,
-                self.group_mgmt_gw_ip,
-                self.get_node_name(i),
-            )
             label = self.get_node_name(i)
-            if existing_nodes_by_label is not None and label in existing_nodes_by_label:
+            configuration, mgmt_ip = derive_node_configuration(
+                node_definition=self.group_node_definition,
+                hostname=label,
+                group_mgmt_subnet=self.group_mgmt_subnet,
+                group_mgmt_start_ip=self.group_mgmt_start_ip,
+                group_mgmt_gw_ip=self.group_mgmt_gw_ip,
+                group_mgmt_dhcp=self.group_mgmt_dhcp,
+                extra_configuration=self.group_extra_configuration,
+            )
+            node.mgmt_ip = mgmt_ip
+            if existing_nodes_by_label is not None and label in existing_nodes_by_label and not self.group_delete_existing:
                 node.create_or_update_node(
                     label=label,
                     position = self.get_node_coordinates(i),
                     image_definition = self.group_image_definition,
-                    configuration = self.group_configuration + mgmt_config,
+                    configuration = configuration,
                     node_definition = self.group_node_definition,
                     interface_count= self.interfaces_per_node,
                     existing_node_data = existing_nodes_by_label[label],
@@ -105,10 +103,10 @@ class NodeGroup:
                     label=label,
                     position = self.get_node_coordinates(i),
                     image_definition = self.group_image_definition,
-                    configuration = self.group_configuration + mgmt_config,
+                    configuration = configuration,
                     node_definition = self.group_node_definition,
                     interface_count= self.interfaces_per_node,
-                    force_delete=self.delete_existing_nodes,
+                    force_delete=self.delete_existing_nodes or self.group_delete_existing,
                 )
             self.nodes.append(node)
             if i == 0:

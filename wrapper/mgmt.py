@@ -1,11 +1,9 @@
-import os
 import jinja2
 import ipaddress
-import glob
+import yaml
 from cml.colors import print_warning, print_error
 
-# These defaults are overridden at runtime by main.py from config.yml
-CONF_FILES_DIRECTORY = "./default_configs"
+# This default is overridden at runtime by main.py from config.yml
 JINJA_DIRECTORY = "./j2"
 
 class MgmtIps:
@@ -55,59 +53,71 @@ def get_next_unused_ip(start_ip: str, subnet: str) -> str:
         MgmtIps.update_used_ip(str(next_ip), subnet)
         return str(next_ip)
 
-def read_conf_files(directory):
-    file_contents = {}
-    pattern = os.path.join(directory, '*.conf')
+def derive_node_configuration(
+        node_definition: str,
+        hostname: str,
+        group_mgmt_subnet: str = "",
+        group_mgmt_start_ip: str = "",
+        group_mgmt_gw_ip: str = "",
+        group_mgmt_dhcp: bool = False,
+        extra_configuration: str = "",
+    ) -> tuple:
+    """Render j2 template for node_definition, parse YAML result into list of config file dicts.
 
-    for filepath in glob.glob(pattern):
-        filename = os.path.basename(filepath)
-        file_key = os.path.splitext(filename)[0]
-        with open(filepath, 'r', encoding='utf-8') as file:
-            content = file.read()
-        file_contents[file_key] = content
-    return file_contents
+    Returns a tuple (config_list, mgmt_ip) where config_list is a list of
+    {"name": ..., "content": ...} dicts (or None), and mgmt_ip is the
+    allocated IP string, "DHCP", or "".
+    """
+    template_vars = {"hostname": hostname}
 
-def get_node_base_config(node_definition: str) -> str:
-    base_configs = read_conf_files(CONF_FILES_DIRECTORY)
-    if node_definition not in base_configs:
-        print_warning(f"Warning: No base node config found for node definition {node_definition}")
-        return ""
-    return base_configs[node_definition]
+    mgmt_ip = ""
 
-def derive_mgmt_config(
-        group_node_definition,
-        group_mgmt_subnet,
-        group_mgmt_start_ip,
-        group_mgmt_gw_ip,
-        hostname,
-    ):
-    config = ""
-    if not is_valid_ip (group_mgmt_start_ip) and  group_mgmt_start_ip != "":
-        print_warning(f"group_mgmt_start_ip: {group_mgmt_start_ip} is not a valid ip. Mgmt config will not be generated")
-        return ""
-    if not is_valid_ip (group_mgmt_start_ip) and  group_mgmt_start_ip != "":
-        print_warning(f"group_mgmt_gw_ip: {group_mgmt_gw_ip} is not a valid ip. Mgmt config will not be generated")
-        return ""
-    if not is_valid_subnet (group_mgmt_subnet) and  group_mgmt_subnet != "":
-        print_warning(f"group_mgmt_subnet: {group_mgmt_subnet} is not a valid ip subnet. Mgmt config will not be generated")
-        return ""
-    ip_address = get_next_unused_ip(group_mgmt_start_ip, group_mgmt_subnet)
-    gw = group_mgmt_gw_ip
-    mask = group_mgmt_subnet.split("/")[1]
-    vars = {
-        "gw" : gw,
-        "ip_address" : ip_address,
-        "mask": mask,
-        "hostname": hostname,
-    }
-    env = jinja2.Environment(loader=jinja2.FileSystemLoader((".")))
+    if group_mgmt_dhcp:
+        # DHCP mode: ignore static IP/subnet/gw, just flag for templates
+        template_vars["dhcp"] = True
+        mgmt_ip = "DHCP"
+    elif group_mgmt_start_ip and group_mgmt_subnet:
+        # Static IP mode
+        if not is_valid_ip(group_mgmt_start_ip):
+            print_warning(f"group_mgmt_start_ip: {group_mgmt_start_ip} is not a valid ip. Mgmt config will not be generated")
+        elif not is_valid_subnet(group_mgmt_subnet):
+            print_warning(f"group_mgmt_subnet: {group_mgmt_subnet} is not a valid subnet. Mgmt config will not be generated")
+        elif group_mgmt_gw_ip and not is_valid_ip(group_mgmt_gw_ip):
+            print_warning(f"group_mgmt_gw_ip: {group_mgmt_gw_ip} is not a valid ip. Mgmt config will not be generated")
+        else:
+            ip_address = get_next_unused_ip(group_mgmt_start_ip, group_mgmt_subnet)
+            if ip_address:
+                mgmt_ip = ip_address
+                template_vars["ip_address"] = ip_address
+                template_vars["mask"] = group_mgmt_subnet.split("/")[1]
+                if group_mgmt_gw_ip:
+                    template_vars["gw"] = group_mgmt_gw_ip
 
+    if extra_configuration:
+        template_vars["extra_configuration"] = extra_configuration
+
+    env = jinja2.Environment(loader=jinja2.FileSystemLoader("."))
     try:
-        config_template = env.get_template(JINJA_DIRECTORY + "/" + group_node_definition + ".j2")
-    except jinja2.exceptions.TemplateNotFound as e:
-        print_warning(f"Management config jinja template for node definition {group_node_definition} was not found in {JINJA_DIRECTORY} directory")
-        print_warning(f"Management configs will not be generated for nodes of type: {group_node_definition}")
-        print_warning(f"TIP: Management config file should be named in the format [group_node_definition].j2 which in this case should be {group_node_definition}.j2")
-        return ""
-    config = config_template.render(vars)
-    return config
+        config_template = env.get_template(JINJA_DIRECTORY + "/" + node_definition + ".j2")
+    except jinja2.exceptions.TemplateNotFound:
+        # No j2 template for this node definition
+        if extra_configuration:
+            return [{"name": "Main", "content": extra_configuration}], mgmt_ip
+        return None, mgmt_ip
+
+    rendered = config_template.render(template_vars)
+    try:
+        config_list = yaml.safe_load(rendered)
+    except yaml.YAMLError as e:
+        print_error(f"Failed to parse rendered configuration YAML for {node_definition}: {e}")
+        return None, mgmt_ip
+
+    if config_list is None:
+        return None, mgmt_ip
+    if isinstance(config_list, dict):
+        config_list = [config_list]
+    if not isinstance(config_list, list):
+        print_error(f"Configuration template for {node_definition} must render to a YAML list of dicts")
+        return None, mgmt_ip
+
+    return config_list, mgmt_ip
